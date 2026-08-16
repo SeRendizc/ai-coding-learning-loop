@@ -1,0 +1,749 @@
+{
+  "schema_version": "ai-coding-learning-loop.comparison.v1",
+  "generated_from": "deterministic protocol fixtures",
+  "empirical_human_study": false,
+  "tasks": [
+    "tiny-parser",
+    "protected-repository",
+    "kv-cache"
+  ],
+  "rows": [
+    {
+      "task_id": "tiny-parser",
+      "mode": "NO_SKILL",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "UNMEASURED",
+      "ai_implementation_share": null,
+      "scripted_rounds": null,
+      "deliver_topic_coverage": null,
+      "gate_attempts": null,
+      "warning": "No learning evidence was collected."
+    },
+    {
+      "task_id": "tiny-parser",
+      "mode": "GUIDED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.25,
+      "scripted_rounds": 8,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_4877a3c03a63",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:5da520228a9ea3a96243aa710c86ea333c3de99f9980414ee9860be757852079"
+        },
+        {
+          "id": "evt_000001_014000fa6c94",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:5991a3dc88b0d66523cb25f4dea4e2faa517aa6701f44c560bbc332bd71f5ee6"
+        },
+        {
+          "id": "evt_000002_c3659b20ca67",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_8bf57fb6e7bf",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:98ecf6391be42be036e0e5793ebc979c264d7761c666dd2734c1817f359135ec"
+        },
+        {
+          "id": "evt_000004_47eb1f4b55e8",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:1b4fe039e26700c365ebc6693efcb56a00ba7b831cce22af41a8a6f9551577c0"
+        },
+        {
+          "id": "evt_000005_18739f8805e7",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:8028c989ae98eee2859f9deb28023e7fa4e2c0a8333ab0260ad61db9029aa5c1"
+        },
+        {
+          "id": "evt_000006_d589b3d8e6d5",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:cd100a9d5329abaccd12c5b0f29244eb2fe6f005f4150173419b2f7172250df9"
+        },
+        {
+          "id": "evt_000007_280060c0c65d",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:b340f01694e8647bd72bea1e0ef64553369e1dcfc90bef565f38d6dffba2fda1"
+        },
+        {
+          "id": "evt_000008_fbdf7bda5244",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:69e3cc0bb9b86295c8680e26ce283fb96b185dedbebc8d51e3a44e758a4f266b"
+        }
+      ]
+    },
+    {
+      "task_id": "tiny-parser",
+      "mode": "HUMAN_LED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.45,
+      "scripted_rounds": 6,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_3b92d9bc8d19",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:7d5daef3b9de0c207d05d62331f1dc849f3695238837f676da096a792d5f5404"
+        },
+        {
+          "id": "evt_000001_2f87e5ba080b",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:5991a3dc88b0d66523cb25f4dea4e2faa517aa6701f44c560bbc332bd71f5ee6"
+        },
+        {
+          "id": "evt_000002_afdcfbc118a1",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_af3cf5cba497",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:98ecf6391be42be036e0e5793ebc979c264d7761c666dd2734c1817f359135ec"
+        },
+        {
+          "id": "evt_000004_2ccb07270e35",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:1b4fe039e26700c365ebc6693efcb56a00ba7b831cce22af41a8a6f9551577c0"
+        },
+        {
+          "id": "evt_000005_5f9b2889b95e",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:8028c989ae98eee2859f9deb28023e7fa4e2c0a8333ab0260ad61db9029aa5c1"
+        },
+        {
+          "id": "evt_000006_6d601badd3a4",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:04b35c81b4b427775059e6efd6e96038c8a30e6ccb16da4901092fd43d6b6000"
+        },
+        {
+          "id": "evt_000007_1133703b7d27",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:6c39c967785c27ace7d28a55ecf31d7a57efaae272faa3111a169c3ba5141589"
+        },
+        {
+          "id": "evt_000008_2925c5329360",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:69e3cc0bb9b86295c8680e26ce283fb96b185dedbebc8d51e3a44e758a4f266b"
+        }
+      ]
+    },
+    {
+      "task_id": "tiny-parser",
+      "mode": "AI_LED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.75,
+      "scripted_rounds": 4,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_f5388505110b",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:250b581c5fb9d32780d64fc8495c5138f0c6a0519cb7e11c7065cac9ef228091"
+        },
+        {
+          "id": "evt_000001_8f8a0f246f71",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:5991a3dc88b0d66523cb25f4dea4e2faa517aa6701f44c560bbc332bd71f5ee6"
+        },
+        {
+          "id": "evt_000002_0969470c16a7",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_9741b63940fa",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:98ecf6391be42be036e0e5793ebc979c264d7761c666dd2734c1817f359135ec"
+        },
+        {
+          "id": "evt_000004_d2d215674b03",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:1b4fe039e26700c365ebc6693efcb56a00ba7b831cce22af41a8a6f9551577c0"
+        },
+        {
+          "id": "evt_000005_47175fd1883d",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:8028c989ae98eee2859f9deb28023e7fa4e2c0a8333ab0260ad61db9029aa5c1"
+        },
+        {
+          "id": "evt_000006_ceb02cc6df87",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:fafe1997b54b124ecfcc19a2d7a0c2bb8caccdc26a63e80618e586297537faf7"
+        },
+        {
+          "id": "evt_000007_58a439c37fc8",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:bc739f2fc2c46575c9ccfa1d0986e7ebb6d044ea1b00c58e52fb114390c389be"
+        },
+        {
+          "id": "evt_000008_d41f04ec8fee",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:69e3cc0bb9b86295c8680e26ce283fb96b185dedbebc8d51e3a44e758a4f266b"
+        }
+      ]
+    },
+    {
+      "task_id": "tiny-parser",
+      "mode": "DELEGATED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 1,
+      "scripted_rounds": 3,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_9e6e75b4b57b",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:2f0212976946609d57a7c1aef263617a5cc25c9e389d3d6841852f8dc5083265"
+        },
+        {
+          "id": "evt_000001_f4be949aa800",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:5991a3dc88b0d66523cb25f4dea4e2faa517aa6701f44c560bbc332bd71f5ee6"
+        },
+        {
+          "id": "evt_000002_8bba7ed404d7",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_b38f8aab3ee8",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:98ecf6391be42be036e0e5793ebc979c264d7761c666dd2734c1817f359135ec"
+        },
+        {
+          "id": "evt_000004_17e0cbccbe54",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:1b4fe039e26700c365ebc6693efcb56a00ba7b831cce22af41a8a6f9551577c0"
+        },
+        {
+          "id": "evt_000005_1c5729d86963",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:8028c989ae98eee2859f9deb28023e7fa4e2c0a8333ab0260ad61db9029aa5c1"
+        },
+        {
+          "id": "evt_000006_00f26ed92aaa",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:406af1b55377f7c15757cea994483e05228e0419a5e39e236f30dabb0f8d0d3b"
+        },
+        {
+          "id": "evt_000007_0094f69dfe62",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:9840af16f443ce4900a2a697884d8d3a9f2b3342d0fdad12c2ce1568e29043c4"
+        },
+        {
+          "id": "evt_000008_0d2e7a070bd6",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:69e3cc0bb9b86295c8680e26ce283fb96b185dedbebc8d51e3a44e758a4f266b"
+        }
+      ]
+    },
+    {
+      "task_id": "protected-repository",
+      "mode": "NO_SKILL",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "UNMEASURED",
+      "ai_implementation_share": null,
+      "scripted_rounds": null,
+      "deliver_topic_coverage": null,
+      "gate_attempts": null,
+      "warning": "No learning evidence was collected."
+    },
+    {
+      "task_id": "protected-repository",
+      "mode": "GUIDED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.25,
+      "scripted_rounds": 8,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_1216fb8b90eb",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:185a3bfd62516ff4907e60b66c8b4baa19265b0160ef390c1a014bc9c1def2d9"
+        },
+        {
+          "id": "evt_000001_65ae336349a5",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:f584b799171982bd89817d6b2daac0c4c3b3986e2eb7baedd07bc23f43c5d34e"
+        },
+        {
+          "id": "evt_000002_463df5cb95ea",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_5a7206ca78f1",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:659d51cf4a057bfdd3b23c922a192c1d42e064e8ea60a0c09822f8027df2e549"
+        },
+        {
+          "id": "evt_000004_69982e4ac2cb",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:0d90a2beed81d955f62171d4abf3d513f925e0a3a0f8c2f1331dfefe71d0907d"
+        },
+        {
+          "id": "evt_000005_1d158bcae728",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:c75276d3909406c5e86496252f8f87f89b660fc4822c851b0075957b9a8e2c22"
+        },
+        {
+          "id": "evt_000006_04478976796e",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:b3c19893e512f7c4b6a75545e65fb47e7b43cad62c79a981a8e58efb7672b1b4"
+        },
+        {
+          "id": "evt_000007_8f0ee818b849",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:232ea22298cb78374c00c1fc1e31218cbbcb4b6600b34c38ee49e03a623ed0e8"
+        },
+        {
+          "id": "evt_000008_e0aeda297b33",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:35e3f0e1ae636163da12a671069f60b70880be691b11b7f4902d1df0350c7683"
+        }
+      ]
+    },
+    {
+      "task_id": "protected-repository",
+      "mode": "HUMAN_LED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.45,
+      "scripted_rounds": 6,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_1da1ab00f471",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:dca950ffbf79b1533119bde2693be19eb53c8486b3692d851d3ef13d91fb9fd8"
+        },
+        {
+          "id": "evt_000001_a7aaec8d82db",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:f584b799171982bd89817d6b2daac0c4c3b3986e2eb7baedd07bc23f43c5d34e"
+        },
+        {
+          "id": "evt_000002_2b45247b159d",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_f594e69449c0",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:659d51cf4a057bfdd3b23c922a192c1d42e064e8ea60a0c09822f8027df2e549"
+        },
+        {
+          "id": "evt_000004_b6117352aa58",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:0d90a2beed81d955f62171d4abf3d513f925e0a3a0f8c2f1331dfefe71d0907d"
+        },
+        {
+          "id": "evt_000005_82141370130a",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:c75276d3909406c5e86496252f8f87f89b660fc4822c851b0075957b9a8e2c22"
+        },
+        {
+          "id": "evt_000006_1a95b69f5346",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:5b6a556770aefad487f9e3cc0669efa1b8c1f5bb5bb465170d52f87f014a884f"
+        },
+        {
+          "id": "evt_000007_3235a316d4ca",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:f5b4256ed6f333034d8390403fbb58dc84535d0fa035a3f0c0d1fb44b9bccbb2"
+        },
+        {
+          "id": "evt_000008_a1546f4aff7a",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:35e3f0e1ae636163da12a671069f60b70880be691b11b7f4902d1df0350c7683"
+        }
+      ]
+    },
+    {
+      "task_id": "protected-repository",
+      "mode": "AI_LED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.75,
+      "scripted_rounds": 4,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_a373251492b6",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:126dfa855e3198628decbdcf6496cd49c0eb3098dc0c11ef5f2403bb499b6601"
+        },
+        {
+          "id": "evt_000001_0d9d3cf84c17",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:f584b799171982bd89817d6b2daac0c4c3b3986e2eb7baedd07bc23f43c5d34e"
+        },
+        {
+          "id": "evt_000002_8ec0f22c37c6",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_73ef98e3fb17",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:659d51cf4a057bfdd3b23c922a192c1d42e064e8ea60a0c09822f8027df2e549"
+        },
+        {
+          "id": "evt_000004_7284d59beab2",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:0d90a2beed81d955f62171d4abf3d513f925e0a3a0f8c2f1331dfefe71d0907d"
+        },
+        {
+          "id": "evt_000005_3d7c436eec46",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:c75276d3909406c5e86496252f8f87f89b660fc4822c851b0075957b9a8e2c22"
+        },
+        {
+          "id": "evt_000006_2f0f88c52384",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:241f920cfc5c1aa461c3a2c8b16189906af78640914ff039897c10e64641f056"
+        },
+        {
+          "id": "evt_000007_4c63de698692",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:8987559eb7c31248c30c3c66499e5c2e2ca33196c92d93bc28d1d4e2687b2029"
+        },
+        {
+          "id": "evt_000008_3d1addf1c1fb",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:35e3f0e1ae636163da12a671069f60b70880be691b11b7f4902d1df0350c7683"
+        }
+      ]
+    },
+    {
+      "task_id": "protected-repository",
+      "mode": "DELEGATED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 1,
+      "scripted_rounds": 3,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_223ffcca6a99",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:c3cdb773a157bd69d93f98b061569cec88f1cc45fd5121be637c49dd37cfb968"
+        },
+        {
+          "id": "evt_000001_7aad353e4de6",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:f584b799171982bd89817d6b2daac0c4c3b3986e2eb7baedd07bc23f43c5d34e"
+        },
+        {
+          "id": "evt_000002_6667c72ed381",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_babc25a85de9",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:659d51cf4a057bfdd3b23c922a192c1d42e064e8ea60a0c09822f8027df2e549"
+        },
+        {
+          "id": "evt_000004_886f60f94747",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:0d90a2beed81d955f62171d4abf3d513f925e0a3a0f8c2f1331dfefe71d0907d"
+        },
+        {
+          "id": "evt_000005_c5bc5f64596c",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:c75276d3909406c5e86496252f8f87f89b660fc4822c851b0075957b9a8e2c22"
+        },
+        {
+          "id": "evt_000006_5b2e1103dda6",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:665b68d2f8138b5c8b575f6a72c22faf4543f02ccd85aa7c887bec3a373d10b3"
+        },
+        {
+          "id": "evt_000007_97aa1ac35f01",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:28904cf233e47bf47c7dce28ddbe7131341ae4f9ad300cf792f3d12c55a30f52"
+        },
+        {
+          "id": "evt_000008_4b6395578b3f",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:35e3f0e1ae636163da12a671069f60b70880be691b11b7f4902d1df0350c7683"
+        }
+      ]
+    },
+    {
+      "task_id": "kv-cache",
+      "mode": "NO_SKILL",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "UNMEASURED",
+      "ai_implementation_share": null,
+      "scripted_rounds": null,
+      "deliver_topic_coverage": null,
+      "gate_attempts": null,
+      "warning": "No learning evidence was collected."
+    },
+    {
+      "task_id": "kv-cache",
+      "mode": "GUIDED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.25,
+      "scripted_rounds": 8,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_b498615478b3",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:0898e5111c42b2e71944c3ebe51686d976537a50bcaa6a0e271ccbb8c6d76d62"
+        },
+        {
+          "id": "evt_000001_f3b06e5946d3",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:7d7d7f01fff71d610ebd69192827ac6ed9e783400bfcd4637896a27d0a80427b"
+        },
+        {
+          "id": "evt_000002_b03db56f1b43",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_f4355c46d382",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:14897fb5c5abd4e1cbdcfd3d4e05de17120ebb801354a3cc380828b1ba688cc4"
+        },
+        {
+          "id": "evt_000004_21cc930dfb69",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:48ba4a53505fdb2b93425390a30fca9a1388e4f58bd130a5e2528347d42459f8"
+        },
+        {
+          "id": "evt_000005_52dc86c66525",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:7d3d275af1d8076cd397b699c3ded49a7ca2029dcd23eeab2ad720280d2d2adb"
+        },
+        {
+          "id": "evt_000006_8adfa5fe955f",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:f270192ccc2b6957ad5d1909b36f59120a868479cf993c4faa36935dd23db212"
+        },
+        {
+          "id": "evt_000007_31004c17f636",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:bad4b5e22e4ac2c27bac91b0af8e9b5a6ee88ba23cdfbc35a51fceb581fedfee"
+        },
+        {
+          "id": "evt_000008_238860b01daa",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:7d7386ee4c4bc9d624a136f758737f9efd8bb046e944693499f592543941c0a0"
+        }
+      ]
+    },
+    {
+      "task_id": "kv-cache",
+      "mode": "HUMAN_LED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.45,
+      "scripted_rounds": 6,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_9902faa63707",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:144d9cec3d83c38407b30668161f8f74d1573542650fb1cdad8f1471c291b8ae"
+        },
+        {
+          "id": "evt_000001_9f5bf01a9781",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:7d7d7f01fff71d610ebd69192827ac6ed9e783400bfcd4637896a27d0a80427b"
+        },
+        {
+          "id": "evt_000002_21eda42d916d",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_d06bdd353afa",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:14897fb5c5abd4e1cbdcfd3d4e05de17120ebb801354a3cc380828b1ba688cc4"
+        },
+        {
+          "id": "evt_000004_9e6128c0ba8f",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:48ba4a53505fdb2b93425390a30fca9a1388e4f58bd130a5e2528347d42459f8"
+        },
+        {
+          "id": "evt_000005_3bbf708ae103",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:7d3d275af1d8076cd397b699c3ded49a7ca2029dcd23eeab2ad720280d2d2adb"
+        },
+        {
+          "id": "evt_000006_972ffbf3944f",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:195d1dbae7801ddd9aba57ca8d33fb4706a043fec0e524887fb8dbd8bfa4e0a8"
+        },
+        {
+          "id": "evt_000007_4a574d19ad7b",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:aad4c7b37e41bfb3a172590d789700d263e2d6df91f1b6c049370078880e8060"
+        },
+        {
+          "id": "evt_000008_87a558101949",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:7d7386ee4c4bc9d624a136f758737f9efd8bb046e944693499f592543941c0a0"
+        }
+      ]
+    },
+    {
+      "task_id": "kv-cache",
+      "mode": "AI_LED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 0.75,
+      "scripted_rounds": 4,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_f04b70978c2f",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:17aa5050d5235bcbaa66562101d4455dbafcbaa1bcbb8a0a3bcdbc65610544fd"
+        },
+        {
+          "id": "evt_000001_39cc3c6b140b",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:7d7d7f01fff71d610ebd69192827ac6ed9e783400bfcd4637896a27d0a80427b"
+        },
+        {
+          "id": "evt_000002_3be9c0fcb82a",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_8fa3214bf097",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:14897fb5c5abd4e1cbdcfd3d4e05de17120ebb801354a3cc380828b1ba688cc4"
+        },
+        {
+          "id": "evt_000004_c091c1d6b1c9",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:48ba4a53505fdb2b93425390a30fca9a1388e4f58bd130a5e2528347d42459f8"
+        },
+        {
+          "id": "evt_000005_33fbdd067e6d",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:7d3d275af1d8076cd397b699c3ded49a7ca2029dcd23eeab2ad720280d2d2adb"
+        },
+        {
+          "id": "evt_000006_655476e2e2c9",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:542bfa008e9e95fbc7e6ed4eab09f2220fe05b615ddd97fec71d86ba7245d795"
+        },
+        {
+          "id": "evt_000007_6043e4c79f0b",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:5381481bc4e68b285c27f4e29b7529c33af5950e9f58948101b1936a1d5e5e66"
+        },
+        {
+          "id": "evt_000008_06659d7f7ec8",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:7d7386ee4c4bc9d624a136f758737f9efd8bb046e944693499f592543941c0a0"
+        }
+      ]
+    },
+    {
+      "task_id": "kv-cache",
+      "mode": "DELEGATED",
+      "protocol_fixture": true,
+      "engineering_verification": "PASS",
+      "learning_status": "MASTERED",
+      "ai_implementation_share": 1,
+      "scripted_rounds": 3,
+      "deliver_topic_coverage": 1,
+      "gate_attempts": 1,
+      "evidence": [
+        {
+          "id": "evt_000000_d57de1ed1dcc",
+          "type": "contract.accepted",
+          "payload_sha256": "sha256:86890795d32d2b92d965f9791ea35e195d489ad9cd962026933b5735116594bf"
+        },
+        {
+          "id": "evt_000001_97cab42b3b8d",
+          "type": "work_unit.briefed",
+          "payload_sha256": "sha256:7d7d7f01fff71d610ebd69192827ac6ed9e783400bfcd4637896a27d0a80427b"
+        },
+        {
+          "id": "evt_000002_c46450daa844",
+          "type": "work_unit.started",
+          "payload_sha256": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+        },
+        {
+          "id": "evt_000003_9b7f1fd4de45",
+          "type": "work_unit.implementation_submitted",
+          "payload_sha256": "sha256:14897fb5c5abd4e1cbdcfd3d4e05de17120ebb801354a3cc380828b1ba688cc4"
+        },
+        {
+          "id": "evt_000004_ac2376965650",
+          "type": "work_unit.verified",
+          "payload_sha256": "sha256:48ba4a53505fdb2b93425390a30fca9a1388e4f58bd130a5e2528347d42459f8"
+        },
+        {
+          "id": "evt_000005_863b195d2112",
+          "type": "deliver.completed",
+          "payload_sha256": "sha256:7d3d275af1d8076cd397b699c3ded49a7ca2029dcd23eeab2ad720280d2d2adb"
+        },
+        {
+          "id": "evt_000006_9529efd0a838",
+          "type": "gate.asked",
+          "payload_sha256": "sha256:198543ca0e57cb8ecd88155074ae01f059abd6647f6e4ed1ddfa7b00a059019e"
+        },
+        {
+          "id": "evt_000007_39816a9523a9",
+          "type": "gate.answered",
+          "payload_sha256": "sha256:84593fa17ea00bb4eab246451ddeebae6e87f2c94b90494a6fe713c5e8eb8ead"
+        },
+        {
+          "id": "evt_000008_f1bf2d710cf8",
+          "type": "gate.evaluated",
+          "payload_sha256": "sha256:7d7386ee4c4bc9d624a136f758737f9efd8bb046e944693499f592543941c0a0"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "PASS answers are scripted fixtures and do not measure a human learner.",
+    "round and implementation-share values are scenario inputs, not observed productivity results.",
+    "use Agent Eval Lab to consume this versioned artifact without importing plugin internals."
+  ]
+}

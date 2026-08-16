@@ -6,6 +6,7 @@ export interface LearningTarget {
   id: string
   mastery: MasteryLevel
   owner: 'human' | 'ai'
+  description: string
 }
 
 export interface WorkUnit {
@@ -16,6 +17,7 @@ export interface WorkUnit {
 export interface LearningContract {
   schema_version: 'ai-coding-learning-loop.learning-contract.v1'
   task_id: string
+  goal: string
   mode: DelegationMode
   learning_targets: LearningTarget[]
   work_units: WorkUnit[]
@@ -34,3 +36,27 @@ export interface DeliverRecord {
   known_gaps: string[]
   ready_for_gate: true
 }
+
+export interface PluginConfig {
+  maxEntries?: number
+  evidenceRoot?: string
+}
+
+export declare const name: 'ai-coding-learning-loop'
+export declare const inject: readonly ['tools']
+export declare const Config: {
+  readonly '~standard': {
+    readonly version: 1
+    readonly vendor: 'ai-coding-learning-loop'
+    validate(input?: unknown): { value: Required<PluginConfig> } | { issues: Array<{ message: string; path?: string[] }> }
+  }
+}
+
+export declare function apply(ctx: object, config?: PluginConfig): void
+export declare function getProbeSnapshot(ctx: object): Readonly<{
+  active: boolean
+  totalObserved: number
+  dropped: number
+  entries: readonly object[]
+}>
+export declare function getOwnershipController(ctx: object): unknown | null

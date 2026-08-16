@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SeRendizc/ai-coding-learning-loop/schemas/plugin-config.schema.json",
+  "title": "AI Coding Learning Loop plugin configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "maxEntries": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 256,
+      "description": "Maximum number of non-durable diagnostic tool observations retained in memory."
+    },
+    "evidenceRoot": {
+      "type": "string",
+      "minLength": 1,
+      "default": ".ai-coding-learning-loop/evidence",
+      "description": "Directory containing the durable event ledger and derived snapshots."
+    }
+  }
+}
