@@ -1,0 +1,13 @@
+{
+  "name": "ai-coding-learning-loop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "verify:harness": "node scripts/verify-harness.mjs ../deepseek-harness-upstream"
+  }
+}

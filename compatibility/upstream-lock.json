@@ -1,0 +1,13 @@
+{
+  "schema_version": "ai-coding-learning-loop.harness-lock.v1",
+  "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+  "ref": "master",
+  "commit": "47f943859bef60e4160492346772ded9b24f765a",
+  "package": {
+    "name": "@deepseek-ai/dsh-root",
+    "version": "0.1.0-rc.5",
+    "packageManager": "pnpm@11.7.0",
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "audited_at": "2026-08-16"
+}
