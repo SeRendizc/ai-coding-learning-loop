@@ -18,6 +18,12 @@ Inside an interactive session, run `/ownership start`. Review the proposed
 Learning Contract and accept it only when the ownership split and Gate target
 match what you want to learn.
 
+The bundle also registers the packaged `ai-coding-learning-loop` Skill through
+Harness's `ctx.skills` runtime seam. It remains discoverable by the model and
+directly invocable by the user; its reference files resolve from the package's
+own Skill directory. A project-local `.dsh/skills/ai-coding-learning-loop`
+copy may intentionally override the bundled runtime registration.
+
 Evidence defaults to `.ai-coding-learning-loop/evidence`. Change
 `evidenceRoot` in the inserted bundle configuration when the working directory
 is temporary or shared.

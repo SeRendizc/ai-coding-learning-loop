@@ -5,7 +5,9 @@
  * sidecar ledger and are exposed through a human-owned command surface.
  */
 
-import { resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { sha256 } from './src/canonical.mjs'
 import { requiredGateLevels } from './src/contracts.mjs'
@@ -18,6 +20,7 @@ export const inject = ['tools']
 
 const DEFAULT_MAX_ENTRIES = 256
 const DEFAULT_EVIDENCE_ROOT = '.ai-coding-learning-loop/evidence'
+const BUNDLED_SKILL_PATH = fileURLToPath(new URL('./skills/ai-coding-learning-loop/SKILL.md', import.meta.url))
 const probes = new WeakMap()
 const controllers = new WeakMap()
 
@@ -219,6 +222,24 @@ function installCommands(ctx, session) {
   })
 }
 
+function installBundledSkill(ctx) {
+  if (typeof ctx.inject !== 'function') return
+  ctx.inject(['skills'], skillCtx => {
+    const source = readFileSync(BUNDLED_SKILL_PATH, 'utf8')
+    const match = /^---\n[\s\S]*?\n---\n\n([\s\S]*)$/u.exec(source)
+    if (!match) throw new Error('bundled AI Coding Learning Loop Skill is malformed')
+    skillCtx.skills.register({
+      name: 'ai-coding-learning-loop',
+      description: 'Preserve transferable understanding while AI plans, implements, verifies, and teaches coding work.',
+      content: match[1],
+      source: 'runtime',
+      invocation: { modelInvocable: true, userInvocable: true },
+      path: BUNDLED_SKILL_PATH,
+      resourceBase: { kind: 'directory', path: dirname(BUNDLED_SKILL_PATH) },
+    })
+  })
+}
+
 /**
  * Mount the observation-only Harness bridge.
  *
@@ -249,6 +270,7 @@ export function apply(ctx, config = {}) {
   })
 
   installCommands(ctx, session)
+  installBundledSkill(ctx)
 
   ctx.on('tools/pre-execute', async (exec, next) => {
     append(state, Object.freeze({

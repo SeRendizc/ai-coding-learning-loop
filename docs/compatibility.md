@@ -14,6 +14,7 @@ Verified from the pinned source contract and local adapter tests:
 - Cordis effect-owned listener cleanup;
 - Cordis Standard Schema v1 configuration validation and defaults;
 - optional `commands` + `userQuestions` composition;
+- optional `skills` composition with a packaged runtime Skill and resource base;
 - stable question IDs and explicit contract confirmation.
 
 Not yet claimed:

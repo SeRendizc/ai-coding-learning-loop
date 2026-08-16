@@ -12,8 +12,10 @@ class CommandContext {
     this.listeners = new Map()
     this.effects = []
     this.command = null
+    this.skill = null
     this.commands = { register: definition => { this.command = definition } }
     this.userQuestions = { ask: async () => this.answers.shift() }
+    this.skills = { register: definition => { this.skill = definition } }
   }
 
   effect(acquire) { this.effects.push(acquire()) }
@@ -25,8 +27,22 @@ class CommandContext {
     return dispose
   }
 
-  inject(_dependencies, callback) { callback(this) }
+  inject(dependencies, callback) {
+    if (dependencies.every(dependency => this[dependency])) callback(this)
+  }
 }
+
+test('Harness bundle registers the learning Skill with its resource directory', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const ctx = new CommandContext([])
+  apply(ctx, { evidenceRoot: root })
+  assert.equal(ctx.skill.name, 'ai-coding-learning-loop')
+  assert.equal(ctx.skill.source, 'runtime')
+  assert.deepEqual(ctx.skill.invocation, { modelInvocable: true, userInvocable: true })
+  assert.match(ctx.skill.content, /Deliver completely/)
+  assert.match(ctx.skill.resourceBase.path, /skills[/\\]ai-coding-learning-loop$/)
+})
 
 test('Cordis configuration seam applies defaults and rejects invalid values', () => {
   assert.deepEqual(Config['~standard'].validate(undefined), {

@@ -89,7 +89,8 @@ The locked target is DeepSeek Harness `0.1.0-rc.5` at commit
 `47f943859bef60e4160492346772ded9b24f765a`. The adapter uses the published
 bundle manifest, Cordis Standard Schema configuration, effect-owned lifecycle,
 optional `commands` and `userQuestions`, `tools/pre-execute`, and
-`tools/result`. Tool hooks are observation-only and never create a second
+`tools/result`. It also registers the packaged Skill through the optional
+`ctx.skills` seam. Tool hooks are observation-only and never create a second
 Agent loop.
 
 Read [installation](docs/install.md), [compatibility](docs/compatibility.md),
