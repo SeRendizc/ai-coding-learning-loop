@@ -1,18 +1,32 @@
 {
   "name": "dsh-ai-coding-learning-loop",
   "version": "0.1.0-alpha.0",
-  "private": true,
+  "description": "Learning-aware delegation, teaching delivery, and transfer gates for AI coding",
+  "license": "MIT",
   "type": "module",
   "main": "index.js",
+  "types": "src/index.d.ts",
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./contracts": "./src/contracts.mjs",
+    "./core": "./src/core.mjs",
+    "./evidence": "./src/evidence.mjs",
+    "./report": "./src/report.mjs"
   },
   "files": [
     "index.js",
     "cordis.patch.yml",
     "src",
+    "schemas",
     "README.md",
     "LICENSE"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "ai-assisted-learning",
+    "ai-coding",
+    "code-ownership"
   ],
   "dsh": {
     "bundle": {

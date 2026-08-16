@@ -16,6 +16,7 @@ const contract = {
   learning_targets: [{ id: 'parser-state', mastery: 'PREDICT', owner: 'human' }],
   work_units: [{ id: 'parse-core', implementation_owner: 'human' }],
   gate: { max_attempts: 3, require_unseen_variant: true },
+  change_policy: 'explicit-confirmation',
 }
 
 const completeDeliver = {
@@ -23,6 +24,7 @@ const completeDeliver = {
   work_unit_id: 'parse-core',
   implementation_ref: 'sha256:implementation',
   verification_refs: ['test:parser'],
+  learning_targets: ['parser-state'],
   topics_taught: [
     'scope',
     'reading-order',
@@ -35,6 +37,7 @@ const completeDeliver = {
     'transfer-example',
     'known-gaps',
   ],
+  known_gaps: [],
   ready_for_gate: true,
 }
 
