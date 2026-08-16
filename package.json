@@ -11,6 +11,7 @@
     "./contracts": "./src/contracts.mjs",
     "./core": "./src/core.mjs",
     "./evidence": "./src/evidence.mjs",
+    "./session": "./src/session.mjs",
     "./report": "./src/report.mjs"
   },
   "files": [

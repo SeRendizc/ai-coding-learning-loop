@@ -88,6 +88,21 @@ export function reduceLearningEvent(state, event) {
       })
     case 'work_unit.revision_started':
       return freezeState({ ...state, phase: transition(state.phase, 'BUILDING') })
+    case 'implementation.invalidated':
+      if (!['DELIVERING', 'AWAITING_GATE'].includes(state.phase)) {
+        throw new Error('implementation can only be invalidated after verification')
+      }
+      return freezeState({
+        ...state,
+        phase: 'BUILDING',
+        engineering_status: 'PENDING',
+        learning_status: 'UNTAUGHT',
+        deliver_ref: null,
+        gate_attempts: 0,
+        mastered_targets: [],
+        unresolved_targets: [],
+        closed: false,
+      })
     case 'deliver.completed':
       return freezeState({
         ...state,
