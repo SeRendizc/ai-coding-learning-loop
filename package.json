@@ -1,13 +1,29 @@
 {
-  "name": "ai-coding-learning-loop",
-  "version": "0.0.0",
+  "name": "dsh-ai-coding-learning-loop",
+  "version": "0.1.0-alpha.0",
   "private": true,
   "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.mjs",
     "verify:harness": "node scripts/verify-harness.mjs ../deepseek-harness-upstream"
   }
 }

@@ -9,8 +9,32 @@ separately.
 The first host adapter targets DeepSeek Harness. The portable contracts do not
 depend on a particular agent runtime.
 
-Current status: product contracts are frozen and the DeepSeek Harness
-compatibility spike has started. This local scaffold is not yet published.
+Current status: product contracts are frozen. The H0 host-compatibility unit
+ships an observation-only DeepSeek Harness bundle; it does not yet persist
+learning evidence or enforce learning gates.
+
+## Try the Harness bundle
+
+The package follows DeepSeek Harness's out-of-tree bundle convention: its
+manifest declares `dsh.bundle.patch`, and that patch inserts the plugin row.
+From a checkout next to an installed Harness CLI:
+
+```bash
+dsh plugin --profile demo add ./ai-coding-learning-loop
+dsh --profile demo --dump-config
+dsh --profile demo
+```
+
+H0 listens at two official tool lifecycle seams:
+
+- `tools/pre-execute`: records a minimal summary, then always calls `next()`
+  and returns the exact downstream decision.
+- `tools/result`: records a minimal summary of Harness's immutable final
+  outcome.
+
+The probe is bounded in memory, excludes tool arguments and result content,
+and is cleared when the plugin unloads. It proves host compatibility only;
+it must not be treated as the durable evidence ledger planned for later work.
 
 ## Delegation modes
 
