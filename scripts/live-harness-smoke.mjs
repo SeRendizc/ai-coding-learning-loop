@@ -31,6 +31,7 @@ await ctx.plugin(questionsModule.default)
 await ctx.plugin(skillsModule.default)
 
 const fiber = await ctx.plugin(plugin, { maxEntries: 8, evidenceRoot })
+const pluginContext = fiber.ctx
 const agentView = { id: 's4-live-agent' }
 const commandNames = ctx.commands.list(agentView).map(command => command.name)
 const skill = await ctx.skills.get('ai-coding-learning-loop')
@@ -51,12 +52,12 @@ const toolResult = await ctx.tools.execute({
   arguments: {},
 })
 if (toolResult.isError || toolResult.value !== 'probe-ok') throw new Error('real Harness tool execution failed')
-const probe = plugin.getProbeSnapshot(ctx)
+const probe = plugin.getProbeSnapshot(pluginContext)
 if (probe.totalObserved !== 2 || probe.entries.map(entry => entry.phase).join(',') !== 'pre-execute,result') {
   throw new Error(`plugin did not observe the real Harness pre-execute/result lifecycle: ${JSON.stringify(probe)}`)
 }
 
-const controller = required(plugin.getOwnershipController(ctx), 'learning controller was not mounted')
+const controller = required(plugin.getOwnershipController(pluginContext), 'learning controller was not mounted')
 await controller.acceptContract({
   schema_version: 'ai-coding-learning-loop.learning-contract.v1',
   task_id: 's4-live-smoke',
@@ -82,7 +83,7 @@ if (beforeRestart.phase !== 'CONTRACTED' || afterRestartEvents.length !== 1) {
 
 await fiber.dispose()
 const cleanup = {
-  controller_removed: plugin.getOwnershipController(ctx) === null,
+  controller_removed: plugin.getOwnershipController(pluginContext) === null,
   command_removed: !ctx.commands.list(agentView).some(command => command.name === 'ownership'),
   skill_removed: await ctx.skills.get('ai-coding-learning-loop') === undefined,
 }
