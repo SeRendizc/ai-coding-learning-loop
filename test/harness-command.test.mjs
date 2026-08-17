@@ -193,6 +193,8 @@ test('model lifecycle tool durably completes one real Deliver and Gate loop', as
   await call({ action: 'record_gate_answer' })
   const answerEvents = await getOwnershipController(ctx).ledger.read('session-lifecycle')
   assert.equal(JSON.stringify(answerEvents).includes('Use the verified prefix'), false)
+  const answerEvent = answerEvents.find(event => event.type === 'gate.answered')
+  assert.match(answerEvent.payload.answer_sha256, /^sha256:[a-f0-9]{64}$/)
   const result = await call({ action: 'evaluate_gate', gate_evaluation: {
     result: 'PASS',
     criterion_results: [
@@ -221,4 +223,35 @@ test('model lifecycle tool fails closed without current evidence and preserves t
   )
   assert.deepEqual(await getOwnershipController(ctx).ledger.read('missing-contract'), [])
   await assert.rejects(() => ctx.lifecycleTool.execute({ action: 'record_gate_answer' }, exec), /not currently expected/)
+})
+
+test('illegal lifecycle ordering and unknown work units append no evidence', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const ctx = new CommandContext([
+    { answers: [
+      { id: 'learning-goal', selected: ['learn-and-ship'] },
+      { id: 'delegation-mode', selected: ['AI_LED'] },
+      { id: 'learning-target', selected: [], custom: 'state transitions' },
+    ] },
+    { answers: [{ id: 'accept-learning-contract', selected: ['Accept'] }] },
+  ])
+  apply(ctx, { evidenceRoot: root })
+  const exec = {
+    agent: { session: { id: 'session-reject', deriveMessages: () => [] } },
+    signal: new AbortController().signal,
+  }
+  await ctx.command.handler({ rawInput: 'start', ...exec })
+  const before = await getOwnershipController(ctx).ledger.read('session-reject')
+  await assert.rejects(
+    () => ctx.lifecycleTool.execute({ action: 'start_work', work_unit_id: 'task-main' }, exec),
+    /illegal transition/,
+  )
+  await assert.rejects(
+    () => ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'not-contracted', topics: ['x'] }, exec),
+    /unknown work unit/,
+  )
+  const after = await getOwnershipController(ctx).ledger.read('session-reject')
+  assert.equal(after.length, before.length)
+  assert.equal((await getOwnershipController(ctx).state('session-reject')).phase, 'CONTRACTED')
 })

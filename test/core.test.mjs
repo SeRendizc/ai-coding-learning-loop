@@ -42,12 +42,14 @@ test('canonical JSON and digest ignore object key insertion order', () => {
 })
 
 test('redaction retains queryable structure but replaces sensitive values with digests', () => {
-  const redacted = redactEvidence({ tool: 'write', arguments: { path: 'a', content: 'secret' }, token: 'x' })
+  const answerSha256 = sha256('answer')
+  const redacted = redactEvidence({ tool: 'write', arguments: { path: 'a', content: 'secret' }, token: 'x', answer_sha256: answerSha256 })
   assert.equal(redacted.tool, 'write')
   assert.equal(redacted.arguments.path, 'a')
   assert.equal(redacted.arguments.content.redacted, true)
   assert.match(redacted.arguments.content.digest, /^sha256:/)
   assert.equal(redacted.token.redacted, true)
+  assert.equal(redacted.answer_sha256, answerSha256)
 })
 
 test('a delegated contract creates an AI-owned plan with all transfer levels', () => {

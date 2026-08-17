@@ -6,6 +6,6 @@ The file backend publishes one immutable JSON file per event using writeâ€“syncâ
 
 Snapshots use `ai-coding-learning-loop.snapshot.v1` and bind `as_of_seq`, the corresponding event hash, and a state digest. Invalid snapshots fall back to full replay.
 
-Default redaction replaces keys associated with answers, credentials, prompts, secrets, tokens, content, and authorization with `{redacted, digest}`. Domain code should still avoid passing unnecessary sensitive data to the ledger.
+Default redaction replaces keys associated with answers, credentials, prompts, secrets, tokens, content, and authorization with `{redacted, digest}`. A syntactically valid SHA-256 value under a `*_sha256` key remains queryable; the corresponding raw value is never reconstructed or stored. Domain code should still avoid passing unnecessary sensitive data to the ledger.
 
 The backend currently fails closed on cross-process append contention instead of silently merging or renumbering competing facts.

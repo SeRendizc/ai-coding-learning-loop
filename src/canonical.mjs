@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 const SENSITIVE_KEY = /(?:answer|authorization|content|credential|key|password|prompt|secret|token)/i
+const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/
 
 function normalize(value, seen) {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value
@@ -32,7 +33,9 @@ export function redactEvidence(value) {
   if (value === null || typeof value !== 'object') return value
   const output = {}
   for (const [key, item] of Object.entries(value)) {
-    output[key] = SENSITIVE_KEY.test(key)
+    output[key] = key.endsWith('_sha256') && typeof item === 'string' && SHA256_DIGEST.test(item)
+      ? item
+      : SENSITIVE_KEY.test(key)
       ? Object.freeze({ redacted: true, digest: sha256(item) })
       : redactEvidence(item)
   }
