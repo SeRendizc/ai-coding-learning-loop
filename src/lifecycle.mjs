@@ -1,7 +1,10 @@
 const ALLOWED = Object.freeze({
   DISCOVER: new Set(['CONTRACTED']),
   CONTRACTED: new Set(['BRIEFED']),
-  BRIEFED: new Set(['BUILDING']),
+  BRIEFED: new Set(['PLANNING']),
+  PLANNING: new Set(['AWAITING_PLAN_REVIEW']),
+  AWAITING_PLAN_REVIEW: new Set(['PLAN_APPROVED', 'PLANNING']),
+  PLAN_APPROVED: new Set(['BUILDING']),
   BUILDING: new Set(['VERIFYING']),
   VERIFYING: new Set(['DELIVERING', 'REVISING']),
   DELIVERING: new Set(['AWAITING_GATE']),
@@ -18,6 +21,8 @@ export function initialLearningState(taskId) {
     engineering_status: 'PENDING',
     learning_status: 'UNTAUGHT',
     active_work_unit_id: null,
+    plan_ref: null,
+    plan_review_attempts: 0,
     deliver_ref: null,
     gate_attempts: 0,
     mastered_targets: Object.freeze([]),
@@ -62,6 +67,8 @@ export function reduceLearningEvent(state, event) {
         ...state,
         phase: 'BRIEFED',
         active_work_unit_id: payload.work_unit_id,
+        plan_ref: null,
+        plan_review_attempts: 0,
         engineering_status: 'PENDING',
         learning_status: 'UNTAUGHT',
         deliver_ref: null,
@@ -70,6 +77,31 @@ export function reduceLearningEvent(state, event) {
       })
     case 'work_unit.started':
       return freezeState({ ...state, phase: transition(state.phase, 'BUILDING') })
+    case 'plan.started':
+      return freezeState({ ...state, phase: transition(state.phase, 'PLANNING') })
+    case 'plan.submitted':
+      return freezeState({
+        ...state,
+        phase: transition(state.phase, 'AWAITING_PLAN_REVIEW'),
+        plan_ref: payload.plan_ref,
+      })
+    case 'plan.reviewed':
+      if (payload.decision === 'APPROVE') {
+        return freezeState({
+          ...state,
+          phase: transition(state.phase, 'PLAN_APPROVED'),
+          plan_review_attempts: state.plan_review_attempts + 1,
+        })
+      }
+      if (payload.decision === 'REVISE') {
+        return freezeState({
+          ...state,
+          phase: transition(state.phase, 'PLANNING'),
+          plan_ref: null,
+          plan_review_attempts: state.plan_review_attempts + 1,
+        })
+      }
+      throw new Error(`unknown plan review decision: ${String(payload.decision)}`)
     case 'work_unit.implementation_submitted':
       return freezeState({ ...state, phase: transition(state.phase, 'VERIFYING') })
     case 'work_unit.verified':

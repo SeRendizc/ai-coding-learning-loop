@@ -6,6 +6,8 @@ import {
   requiredGateLevels,
   validateDeliverRecord,
   validateLearningContract,
+  validatePlanRecord,
+  validateGateEvaluation,
 } from '../src/contracts.mjs'
 import { transition } from '../src/lifecycle.mjs'
 
@@ -50,6 +52,29 @@ test('the four delegation modes carry distinct minimum gate evidence', () => {
 
 test('a valid learning contract is accepted', () => {
   assert.deepEqual(validateLearningContract(contract), [])
+})
+
+test('Planning is a separate user-reviewed phase before Build', () => {
+  assert.deepEqual(validatePlanRecord({
+    schema_version: 'ai-coding-learning-loop.plan.v1',
+    work_unit_id: 'parse-core',
+    implementation_steps: ['implement parser transitions'],
+    verification_plan: ['run parser tests'],
+    learning_anchors: ['state stack'],
+    known_risks: [],
+  }), [])
+  assert.equal(transition('BRIEFED', 'PLANNING'), 'PLANNING')
+  assert.equal(transition('PLANNING', 'AWAITING_PLAN_REVIEW'), 'AWAITING_PLAN_REVIEW')
+  assert.throws(() => transition('AWAITING_PLAN_REVIEW', 'BUILDING'), /illegal transition/)
+  assert.equal(transition('AWAITING_PLAN_REVIEW', 'PLAN_APPROVED'), 'PLAN_APPROVED')
+  assert.equal(transition('PLAN_APPROVED', 'BUILDING'), 'BUILDING')
+})
+
+test('Gate evaluation requires structured criterion evidence', () => {
+  assert.match(validateGateEvaluation({
+    result: 'PASS',
+    criterion_results: ['assume everything passed'],
+  }).join('\n'), /criterion_result must be an object/)
 })
 
 test('Gate cannot open before the full teaching Deliver exists', () => {

@@ -1,6 +1,7 @@
 export type DelegationMode = 'GUIDED' | 'HUMAN_LED' | 'AI_LED' | 'DELEGATED'
 export type MasteryLevel = 'EXPLAIN' | 'PREDICT' | 'APPLY'
 export type GateResult = 'PASS' | 'RETRY' | 'BLOCK'
+export type LearnerExpertise = 'BEGINNER' | 'PRACTITIONER' | 'EXPERT'
 
 export interface LearningTarget {
   id: string
@@ -14,11 +15,21 @@ export interface WorkUnit {
   implementation_owner: 'human' | 'ai' | 'pair'
 }
 
+export interface PlanRecord {
+  schema_version: 'ai-coding-learning-loop.plan.v1'
+  work_unit_id: string
+  implementation_steps: string[]
+  verification_plan: string[]
+  learning_anchors: string[]
+  known_risks: string[]
+}
+
 export interface LearningContract {
   schema_version: 'ai-coding-learning-loop.learning-contract.v1'
   task_id: string
   goal: string
   mode: DelegationMode
+  learner_profile?: { expertise: LearnerExpertise; locale: 'zh-CN' | 'en' }
   learning_targets: LearningTarget[]
   work_units: WorkUnit[]
   gate: { max_attempts: number; require_unseen_variant: boolean }

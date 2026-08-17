@@ -81,6 +81,9 @@ test('reducer separates engineering PASS from learning RETRY and preserves attem
   const events = [
     { type: 'contract.accepted', payload: {} },
     { type: 'work_unit.briefed', payload: { work_unit_id: 'parse-core' } },
+    { type: 'plan.started', payload: {} },
+    { type: 'plan.submitted', payload: { plan_ref: 'sha256:plan' } },
+    { type: 'plan.reviewed', payload: { decision: 'APPROVE' } },
     { type: 'work_unit.started', payload: {} },
     { type: 'work_unit.implementation_submitted', payload: {} },
     { type: 'work_unit.verified', payload: { result: 'PASS' } },
@@ -93,6 +96,8 @@ test('reducer separates engineering PASS from learning RETRY and preserves attem
     engineering_status: 'PASS',
     learning_status: 'DELIVERING',
     active_work_unit_id: 'parse-core',
+    plan_ref: 'sha256:plan',
+    plan_review_attempts: 1,
     deliver_ref: 'sha256:code',
     gate_attempts: 1,
     mastered_targets: [],
@@ -105,6 +110,9 @@ test('PASS closes the learning unit while BLOCK closes with unresolved evidence'
   const prefix = [
     { type: 'contract.accepted', payload: {} },
     { type: 'work_unit.briefed', payload: { work_unit_id: 'parse-core' } },
+    { type: 'plan.started', payload: {} },
+    { type: 'plan.submitted', payload: { plan_ref: 'sha256:plan' } },
+    { type: 'plan.reviewed', payload: { decision: 'APPROVE' } },
     { type: 'work_unit.started', payload: {} },
     { type: 'work_unit.implementation_submitted', payload: {} },
     { type: 'work_unit.verified', payload: { result: 'PASS' } },

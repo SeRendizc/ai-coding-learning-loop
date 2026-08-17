@@ -68,6 +68,16 @@ try {
       }
       await session.acceptContract(contract)
       await session.brief(taskId, task.work_unit_id, ['scope', 'invariants'])
+      await session.startPlan(taskId, task.work_unit_id)
+      await session.submitPlan(taskId, {
+        schema_version: 'ai-coding-learning-loop.plan.v1',
+        work_unit_id: task.work_unit_id,
+        implementation_steps: [`implement ${task.target_id}`],
+        verification_plan: [task.verification_ref],
+        learning_anchors: [task.target_id],
+        known_risks: [],
+      })
+      await session.recordPlanReview(taskId, 'APPROVE')
       await session.startWork(taskId, task.work_unit_id)
       await session.submitImplementation(taskId, task.work_unit_id, task.implementation_ref)
       await session.recordVerification(taskId, task.work_unit_id, 'PASS', task.implementation_ref, [task.verification_ref])

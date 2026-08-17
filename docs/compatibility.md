@@ -2,8 +2,8 @@
 
 Verified target:
 
-- Harness package: `0.1.0-rc.5`
-- Commit: `47f943859bef60e4160492346772ded9b24f765a`
+- Harness package: `0.1.0-rc.7`
+- Commit: `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`
 - Node: `^22.19.0 || >=24.0.0`
 
 Verified from the pinned source contract and local adapter tests:
@@ -24,7 +24,7 @@ Verified live by [pinned Harness run 32039847931](https://github.com/SeRendizc/a
 - actual Cordis, System Prompt, Tools, Commands, User Questions, and Skills services;
 - real `tools/pre-execute` and `tools/result` observation;
 - model-facing `ownership_lifecycle` registration and a complete durable
-  Brief -> Build -> Verify -> Deliver -> Gate transition to `CLOSED / MASTERED`;
+  Brief -> Planning -> user Plan Review -> Build -> Verify -> Deliver -> Gate transition to `CLOSED / MASTERED`;
 - restart-safe sidecar recovery and effect-owned Fiber cleanup, including Tool removal.
 
 Not yet claimed:
@@ -48,7 +48,7 @@ The current evidence-backend decision is therefore `sidecar-file-v1`. It avoids 
 
 Compatibility is release-based, not commit-chasing:
 
-- the immutable rc.5 commit above is the blocking last-known-good baseline;
+- the immutable rc.7 commit above is the blocking last-known-good baseline;
 - pull requests, manual runs, and a weekly schedule resolve the latest
   published `dsh-v*` release and execute the same live lifecycle as a
   non-blocking canary;

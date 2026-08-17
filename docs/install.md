@@ -2,8 +2,8 @@
 
 ## For users: install once, then start normally
 
-The supported first target is DeepSeek Harness `0.1.0-rc.5` at commit
-`47f943859bef60e4160492346772ded9b24f765a`.
+The supported first target is DeepSeek Harness `0.1.0-rc.7` at commit
+`99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`.
 
 You do **not** need to clone or build the DeepSeek Harness repository. If you
 already installed `dsh`, use that same executable for both installation and
@@ -19,8 +19,8 @@ For a reproducible baseline without a global installation, pin both commands
 to the same verified Harness version:
 
 ```bash
-npx -y @deepseek-ai/dsh@0.1.0-rc.5 plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
-npx -y @deepseek-ai/dsh@0.1.0-rc.5 web
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
+npx -y @deepseek-ai/dsh@0.1.0-rc.7 web
 ```
 
 Do not install with one `dsh` version and then start the same profile with a
@@ -77,13 +77,14 @@ profile patch, or Harness boot) determines the fix.
 For a first real task:
 
 1. open a new Web session and run `/ownership start`;
-2. choose the learning goal, delegation mode, and one concrete mechanism;
-3. inspect and explicitly accept the generated Learning Contract;
+2. enter one concise learning target, then choose delegation mode and current expertise;
+3. inspect and explicitly accept the generated Learning Contract; the locale is inferred from the conversation and target;
 4. give the coding task in the same session;
-5. let the Skill brief, implement according to the selected ownership split,
+5. inspect the AI-proposed Plan. Approve it or request a revision; implementation cannot start before approval;
+6. let the Skill implement according to the approved Plan and ownership split,
    verify, teach the Deliver, and open the Gate;
-6. answer the Gate yourself rather than asking the model to answer for you;
-7. use `/ownership status` or `/ownership report` to inspect the separate
+7. answer the Gate yourself rather than asking the model to answer for you; self-attestation cannot produce PASS;
+8. use `/ownership status` or `/ownership report` to inspect the separate
    engineering and learning results.
 
 `ownership_lifecycle` is an internal model tool. Users should not synthesize

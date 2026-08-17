@@ -6,6 +6,7 @@ import {
   validateGateCase,
   validateGateEvaluation,
   validateLearningContract,
+  validatePlanRecord,
 } from './contracts.mjs'
 import { replayLearningEvents } from './lifecycle.mjs'
 
@@ -16,6 +17,11 @@ function assertValid(errors, label) {
 export function acceptLearningContract(contract) {
   assertValid(validateLearningContract(contract), 'invalid Learning Contract')
   return Object.freeze(structuredClone(contract))
+}
+
+export function acceptPlan(record) {
+  assertValid(validatePlanRecord(record), 'invalid Plan Record')
+  return Object.freeze(structuredClone(record))
 }
 
 export function buildWorkPlan(contract) {

@@ -94,6 +94,21 @@ const record = async arguments_ => {
 }
 const implementationRef = 'sha256:s4-live-implementation'
 await record({ action: 'brief', work_unit_id: 'live-smoke', topics: ['Harness lifecycle boundary'] })
+await record({ action: 'start_plan', work_unit_id: 'live-smoke' })
+await record({ action: 'submit_plan', plan_record: {
+  schema_version: 'ai-coding-learning-loop.plan.v1',
+  work_unit_id: 'live-smoke',
+  implementation_steps: ['exercise the Harness lifecycle boundary'],
+  verification_plan: ['run the live S4 probe'],
+  learning_anchors: ['Harness lifecycle boundary'],
+  known_risks: [],
+} })
+lifecycleSession.messages = [{
+  role: 'user',
+  source: { kind: 'user' },
+  content: [{ type: 'text', text: 'Approve the proposed Plan.' }],
+}]
+await record({ action: 'record_plan_review', plan_review_decision: 'APPROVE' })
 await record({ action: 'start_work', work_unit_id: 'live-smoke' })
 await record({ action: 'submit_implementation', work_unit_id: 'live-smoke', implementation_ref: implementationRef })
 await record({
@@ -126,10 +141,11 @@ await record({ action: 'ask_gate', gate_case: {
   prompt: 'Apply the authorization boundary to a delegated tool call.',
   rubric: ['keeps Harness authorization authoritative'],
 } })
-lifecycleSession.messages = [{
+lifecycleSession.messages.push({
   role: 'user',
+  source: { kind: 'user' },
   content: [{ type: 'text', text: 'Delegation does not bypass Harness authorization.' }],
-}]
+})
 await record({ action: 'record_gate_answer' })
 const lifecycleResult = await record({ action: 'evaluate_gate', gate_evaluation: {
   result: 'PASS',
@@ -142,7 +158,7 @@ if (lifecycleResult.state.phase !== 'CLOSED' || lifecycleResult.state.learning_s
 const Ledger = controller.ledger.constructor
 const restarted = new Ledger(evidenceRoot)
 const afterRestartEvents = await restarted.read('s4-live-smoke')
-if (beforeRestart.phase !== 'CONTRACTED' || afterRestartEvents.length !== 9) {
+if (beforeRestart.phase !== 'CONTRACTED' || afterRestartEvents.length !== 12) {
   throw new Error('sidecar evidence did not survive a fresh ledger instance')
 }
 

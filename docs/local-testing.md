@@ -26,7 +26,7 @@ That command performs the complete local acceptance:
 9. performs `npm pack --dry-run` to check the release contents.
 
 The supported Harness revision is
-`47f943859bef60e4160492346772ded9b24f765a`; the orchestrator rejects a different
+`99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`; the orchestrator rejects a different
 revision instead of silently testing moving upstream code.
 
 Maintainers may exercise another immutable release ref without editing the

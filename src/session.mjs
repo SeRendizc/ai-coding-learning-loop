@@ -3,6 +3,7 @@ import {
   acceptDeliver,
   acceptGateEvaluation,
   acceptLearningContract,
+  acceptPlan,
   bindGateCase,
   projectTask,
 } from './core.mjs'
@@ -91,6 +92,62 @@ export class LearningSession {
   async startWork(taskId, workUnitId) {
     await this.#requireWorkUnit(taskId, workUnitId)
     return this.#appendProjected({ task_id: taskId, type: 'work_unit.started', actor: 'runtime', work_unit_id: workUnitId })
+  }
+
+  async startPlan(taskId, workUnitId) {
+    await this.#requireWorkUnit(taskId, workUnitId)
+    return this.#appendProjected({
+      task_id: taskId,
+      type: 'plan.started',
+      actor: 'agent',
+      work_unit_id: workUnitId,
+      payload: { work_unit_id: workUnitId },
+    })
+  }
+
+  async submitPlan(taskId, record, userMessageCountAtSubmit = null) {
+    if (userMessageCountAtSubmit !== null
+      && (!Number.isSafeInteger(userMessageCountAtSubmit) || userMessageCountAtSubmit < 0)) {
+      throw new TypeError('userMessageCountAtSubmit must be a non-negative safe integer')
+    }
+    const accepted = acceptPlan(record)
+    const { state } = await this.#requireWorkUnit(taskId, accepted.work_unit_id)
+    if (state.phase !== 'PLANNING') throw new Error('Plan is not currently expected')
+    const planRef = sha256(accepted)
+    return this.#appendProjected({
+      task_id: taskId,
+      type: 'plan.submitted',
+      actor: 'agent',
+      work_unit_id: accepted.work_unit_id,
+      refs: [planRef],
+      payload: {
+        plan: accepted,
+        plan_ref: planRef,
+        ...(userMessageCountAtSubmit === null ? {} : { user_message_count_at_submit: userMessageCountAtSubmit }),
+      },
+    })
+  }
+
+  async recordPlanReview(taskId, decision, currentUserMessageCount = null) {
+    if (!['APPROVE', 'REVISE'].includes(decision)) {
+      throw new TypeError('Plan review decision must be APPROVE or REVISE')
+    }
+    const { events, state } = await this.#contractAndState(taskId)
+    if (state.phase !== 'AWAITING_PLAN_REVIEW') throw new Error('Plan review is not currently expected')
+    const submitted = latest(events, 'plan.submitted')
+    const boundary = submitted?.payload?.user_message_count_at_submit
+    if (boundary !== undefined
+      && (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount <= boundary)) {
+      throw new Error('Plan review requires a new direct user message after the Plan')
+    }
+    return this.#appendProjected({
+      task_id: taskId,
+      type: 'plan.reviewed',
+      actor: 'user',
+      work_unit_id: submitted.work_unit_id,
+      refs: [submitted.payload.plan_ref],
+      payload: { decision, plan_ref: submitted.payload.plan_ref },
+    })
   }
 
   async submitImplementation(taskId, workUnitId, implementationRef) {
@@ -196,6 +253,23 @@ export class LearningSession {
     const evaluated = latest(events, 'gate.evaluated')
     if (!answered || answered.seq < askedEvent.seq) throw new Error('Gate evaluation requires the current user answer')
     if (evaluated && evaluated.seq > askedEvent.seq) throw new Error('the active Gate is already evaluated')
+    const expectedCriteria = new Set(asked.rubric)
+    const actualCriteria = new Set(accepted.criterion_results.map(result => result.criterion))
+    if (actualCriteria.size !== expectedCriteria.size
+      || [...expectedCriteria].some(criterion => !actualCriteria.has(criterion))) {
+      throw new Error('Gate evaluation must cover every exact rubric criterion once')
+    }
+    if (accepted.criterion_results.length !== actualCriteria.size) {
+      throw new Error('Gate evaluation contains duplicate rubric criteria')
+    }
+    if (accepted.result === 'PASS') {
+      if (accepted.criterion_results.some(result => result.passed !== true)) {
+        throw new Error('Gate PASS requires every rubric criterion to pass')
+      }
+      if (!accepted.mastered_targets?.includes(asked.learning_target_id)) {
+        throw new Error('Gate PASS must master the Gate learning target')
+      }
+    }
     const nextAttempt = state.gate_attempts + 1
     const exhausted = nextAttempt >= contract.gate.max_attempts && accepted.result === 'RETRY'
     const finalEvaluation = exhausted

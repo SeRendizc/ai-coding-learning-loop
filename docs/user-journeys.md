@@ -18,7 +18,7 @@ Choose `DELEGATED`. The AI implements and verifies everything, then performs a c
 
 In every journey, `/ownership start` creates a contract only after explicit
 confirmation. Continue the coding request in that same session: the Skill uses
-the internal lifecycle tool to persist Brief, Build, Verify, Deliver, and Gate
-actions. The user answers Gate questions directly. `/ownership status`
+the internal lifecycle tool to persist Brief, Planning, Plan Review, Build, Verify, Deliver, and Gate
+actions. The AI then proposes a separate Plan and waits for explicit user approval before Build. The user answers Gate questions directly; self-attestation is not learning evidence. `/ownership status`
 displays derived state, and `/ownership report` displays separate engineering
 and learning outcomes.

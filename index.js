@@ -114,11 +114,43 @@ function taskIdForExecution(exec) {
   return taskId
 }
 
-function currentUserMessageCount(exec) {
+function directUserMessages(exec) {
   const messages = exec?.agent?.session?.deriveMessages?.()
   if (!Array.isArray(messages)) throw new Error('Harness session messages are unavailable for Gate evidence')
-  return messages.filter(candidate => candidate?.role === 'user'
-    && Array.isArray(candidate.content) && candidate.content.length > 0).length
+  const userRole = messages.filter(candidate => candidate?.role === 'user'
+    && Array.isArray(candidate.content) && candidate.content.length > 0)
+  const direct = userRole.filter(candidate => candidate?.source?.kind === 'user')
+  return direct.length > 0 ? direct : userRole
+}
+
+function currentUserMessageCount(exec) {
+  return directUserMessages(exec).length
+}
+
+function messageText(message) {
+  const content = Array.isArray(message?.content) ? message.content : []
+  return content
+    .filter(block => block?.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text)
+    .join('\n')
+}
+
+function assertSubstantiveGateAnswer(exec) {
+  const text = messageText(directUserMessages(exec).at(-1) ?? {}).trim()
+  if (text.length === 0) throw new Error('Gate requires a substantive direct user answer')
+  const override = /(当作|假设|视为).{0,16}(答对|正确|通过)|全部答对|无需.{0,8}(回答|作答)|直接.{0,8}(通过|pass)|treat.{0,24}(correct|pass)|assume.{0,24}correct|mark.{0,24}pass|skip.{0,16}gate/i
+  if (override.test(text)) {
+    throw new Error('Gate cannot accept self-attestation, test authorization, or an instruction to mark the answer correct')
+  }
+}
+
+function assertPlanReviewDecision(exec, decision) {
+  const text = messageText(directUserMessages(exec).at(-1) ?? {}).trim()
+  if (text.length === 0) throw new Error('Plan review requires a direct user response')
+  if (decision === 'APPROVE'
+    && !/(批准|同意|可以开始|按此执行|开始实现|approve|approved|accept|go ahead|looks good)/i.test(text)) {
+    throw new Error('Plan APPROVE requires an explicit approval in the latest direct user message')
+  }
 }
 
 function lifecycleTool(session) {
@@ -134,18 +166,40 @@ function lifecycleTool(session) {
           type: 'string',
           enum: [
             'status', 'brief', 'start_work', 'submit_implementation', 'record_verification',
+            'start_plan', 'submit_plan', 'record_plan_review',
             'start_revision', 'complete_deliver', 'ask_gate', 'record_gate_answer',
             'evaluate_gate', 'invalidate_implementation',
           ],
         },
         work_unit_id: { type: 'string' },
         topics: { type: 'array', items: { type: 'string' } },
+        plan_record: { type: 'object', additionalProperties: true },
+        plan_review_decision: { type: 'string', enum: ['APPROVE', 'REVISE'] },
         implementation_ref: { type: 'string' },
         verification_result: { type: 'string', enum: ['PASS', 'FAIL'] },
         verification_refs: { type: 'array', items: { type: 'string' } },
         deliver_record: { type: 'object', additionalProperties: true },
         gate_case: { type: 'object', additionalProperties: true },
-        gate_evaluation: { type: 'object', additionalProperties: true },
+        gate_evaluation: {
+          type: 'object',
+          additionalProperties: true,
+          required: ['result', 'criterion_results'],
+          properties: {
+            result: { type: 'string', enum: ['PASS', 'RETRY', 'BLOCK'] },
+            criterion_results: {
+              type: 'array',
+              minItems: 1,
+              items: {
+                type: 'object',
+                required: ['criterion', 'passed'],
+                properties: {
+                  criterion: { type: 'string' },
+                  passed: { type: 'boolean' },
+                },
+              },
+            },
+          },
+        },
         next_implementation_ref: { type: 'string' },
       },
     },
@@ -161,6 +215,24 @@ function lifecycleTool(session) {
         case 'status': break
         case 'brief':
           await session.brief(taskId, requiredString(input.work_unit_id, 'work_unit_id'), requiredStringArray(input.topics, 'topics'))
+          break
+        case 'start_plan':
+          await session.startPlan(taskId, requiredString(input.work_unit_id, 'work_unit_id'))
+          break
+        case 'submit_plan':
+          await session.submitPlan(
+            taskId,
+            requiredObject(input.plan_record, 'plan_record'),
+            currentUserMessageCount(exec),
+          )
+          break
+        case 'record_plan_review':
+          assertPlanReviewDecision(exec, requiredString(input.plan_review_decision, 'plan_review_decision'))
+          await session.recordPlanReview(
+            taskId,
+            requiredString(input.plan_review_decision, 'plan_review_decision'),
+            currentUserMessageCount(exec),
+          )
           break
         case 'start_work':
           await session.startWork(taskId, requiredString(input.work_unit_id, 'work_unit_id'))
@@ -198,6 +270,7 @@ function lifecycleTool(session) {
           if ((await session.state(taskId)).phase !== 'AWAITING_GATE') {
             throw new Error('Gate answer is not currently expected')
           }
+          assertSubstantiveGateAnswer(exec)
           await session.recordGateAnswer(taskId, currentUserMessageCount(exec))
           break
         case 'evaluate_gate':
@@ -220,7 +293,7 @@ function installLifecycleTool(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:lifecycle',
       order: 117,
-      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and use ownership_lifecycle to read status and durably record each completed Brief, Build, Verify, Deliver, and Gate action. Record evidence only after the corresponding action actually occurred. Never use the tool to grant execution permission or to claim learning PASS without a current direct-user Gate answer.',
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and use ownership_lifecycle to record Brief, a separately proposed and user-approved Plan, Build, Verify, Deliver, and Gate. Never start Build before Plan approval. Follow the contract locale and learner expertise. Record evidence only after the action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
     }))
   })
 }
@@ -251,57 +324,125 @@ function answerValue(answer) {
   return answer?.custom?.trim() || answer?.selected?.[0]
 }
 
+function inferLocale(invocation, target = '') {
+  let recent = ''
+  try {
+    recent = directUserMessages({ agent: invocation.agent })
+      .slice(-3)
+      .map(messageText)
+      .join('\n')
+  } catch {
+    // A command can be the first session action. The target entered below is
+    // still enough to localize the accepted contract and all later teaching.
+  }
+  if (/[\u3400-\u9fff]/u.test(`${recent}\n${target}`)) return 'zh-CN'
+  const hostLocale = Intl.DateTimeFormat().resolvedOptions().locale
+  return /^zh(?:-|$)/i.test(hostLocale) ? 'zh-CN' : 'en'
+}
+
+function goalForMode(mode) {
+  if (mode === 'DELEGATED') return 'ship-first'
+  if (mode === 'GUIDED') return 'deep-learning'
+  return 'learn-and-ship'
+}
+
+function startCopy(locale) {
+  if (locale === 'zh-CN') return {
+    targetQuestion: '用一句话说明：完成任务后，你必须能解释或应用什么？详细教学目标由 AI 在 Plan 中拆解并交你审核。',
+    expertiseQuestion: '你目前对这个目标机制的熟悉程度？',
+    modeQuestion: '这次希望 AI 承担多少实现工作？',
+    confirmQuestion: '开始实现前，是否接受这份学习合同？',
+    acceptDescription: '持久化合同，随后由 AI 提交详细 Plan 供你审核。',
+    cancelDescription: '不保存任何学习合同并停止。',
+    accepted: mode => `已接受 ${mode} 模式的学习合同。下一步由 AI 给出详细 Plan，经你审核后才能实现。`,
+    cancelled: '已取消；没有创建学习任务。',
+  }
+  return {
+    targetQuestion: 'In one sentence, what must you be able to explain or apply after the task? AI will refine it in a Plan for your review.',
+    expertiseQuestion: 'How familiar are you with this target mechanism?',
+    modeQuestion: 'How much implementation should the AI own?',
+    confirmQuestion: 'Accept this Learning Contract before implementation begins?',
+    acceptDescription: 'Persist the contract; AI must then submit a detailed Plan for your review.',
+    cancelDescription: 'Persist nothing and stop.',
+    accepted: mode => `Learning Contract accepted in ${mode} mode. AI must submit a detailed Plan for your approval before implementation.`,
+    cancelled: 'Learning Contract cancelled; no learning task was started.',
+  }
+}
+
+function renderStatus(state, locale) {
+  if (locale !== 'zh-CN') return JSON.stringify(state, null, 2)
+  return `# Ownership 状态\n\n`
+    + `- 任务：${state.task_id}\n`
+    + `- 当前阶段：${state.phase}\n`
+    + `- 工程状态：${state.engineering_status}\n`
+    + `- 学习状态：${state.learning_status}\n`
+    + `- 当前工作单元：${state.active_work_unit_id ?? '无'}\n`
+    + `- Plan 审核次数：${state.plan_review_attempts ?? 0}\n`
+    + `- Gate 尝试次数：${state.gate_attempts}\n`
+    + `- 已掌握目标：${state.mastered_targets.join(', ') || '无'}\n`
+    + `- 未解决目标：${state.unresolved_targets.join(', ') || '无'}\n`
+    + `- 是否关闭：${state.closed ? '是' : '否'}`
+}
+
 function modeOwner(mode) {
   return ['GUIDED', 'HUMAN_LED'].includes(mode) ? 'human' : 'ai'
 }
 
 async function startContract(commandCtx, session, invocation) {
+  const initialLocale = inferLocale(invocation)
+  const initialCopy = startCopy(initialLocale)
   const first = await commandCtx.userQuestions.ask({
     agent: invocation.agent,
     signal: invocation.signal,
     questions: [
       {
-        id: 'learning-goal',
-        header: 'Goal',
-        question: 'What matters most for this coding task?',
-        options: [
-          { label: 'learn-and-ship', description: 'Balance delivery with transferable understanding.' },
-          { label: 'deep-learning', description: 'Keep more implementation responsibility.' },
-          { label: 'ship-first', description: 'Delegate implementation but retain teaching gates.' },
-        ],
+        id: 'learning-target',
+        header: initialLocale === 'zh-CN' ? '学习目标' : 'Target',
+        question: initialCopy.targetQuestion,
       },
       {
         id: 'delegation-mode',
-        header: 'Mode',
-        question: 'How much implementation should the AI own?',
+        header: initialLocale === 'zh-CN' ? '委托模式' : 'Mode',
+        question: initialCopy.modeQuestion,
         options: [
-          { label: 'AI_LED', description: 'AI implements most code; you keep learning anchors.' },
-          { label: 'GUIDED', description: 'You implement core code with AI guidance.' },
-          { label: 'HUMAN_LED', description: 'AI scaffolds; you implement core methods.' },
-          { label: 'DELEGATED', description: 'AI implements all code, then teaches and gates transfer.' },
+          { label: 'AI_LED', description: initialLocale === 'zh-CN' ? 'AI 实现大部分代码，你保留关键学习锚点。' : 'AI implements most code; you keep learning anchors.' },
+          { label: 'GUIDED', description: initialLocale === 'zh-CN' ? '你实现核心代码，AI 负责指导与检视。' : 'You implement core code with AI guidance.' },
+          { label: 'HUMAN_LED', description: initialLocale === 'zh-CN' ? 'AI 搭建脚手架，你实现核心方法。' : 'AI scaffolds; you implement core methods.' },
+          { label: 'DELEGATED', description: initialLocale === 'zh-CN' ? 'AI 完成实现与验证，再负责教学和 Gate。' : 'AI implements all code, then teaches and gates transfer.' },
         ],
       },
       {
-        id: 'learning-target',
-        header: 'Target',
-        question: 'Name the one mechanism you must be able to explain or apply after this task.',
+        id: 'learner-expertise',
+        header: initialLocale === 'zh-CN' ? '熟悉程度' : 'Expertise',
+        question: initialCopy.expertiseQuestion,
+        options: [
+          { label: 'PRACTITIONER', description: initialLocale === 'zh-CN' ? '掌握基础，重点讲数据流、权衡与失败路径。' : 'Know the basics; focus on data flow, trade-offs, and failures.' },
+          { label: 'BEGINNER', description: initialLocale === 'zh-CN' ? '从术语和前置知识讲起，给出逐步示例。' : 'Define terms and prerequisites with step-by-step examples.' },
+          { label: 'EXPERT', description: initialLocale === 'zh-CN' ? '使用专业术语，聚焦差异、不变量与边界。' : 'Use precise terminology; focus on deltas, invariants, and edges.' },
+        ],
       },
     ],
   })
   const byId = Object.fromEntries(first.answers.map(answer => [answer.id, answer]))
-  const goal = answerValue(byId['learning-goal'])
   const mode = answerValue(byId['delegation-mode'])
   const target = answerValue(byId['learning-target'])
-  if (!goal || !mode || !target || !['GUIDED', 'HUMAN_LED', 'AI_LED', 'DELEGATED'].includes(mode)) {
-    return { kind: 'error', text: 'Learning Contract was not created: goal, valid mode, and target are required.' }
+  const expertise = answerValue(byId['learner-expertise'])
+  const locale = inferLocale(invocation, target)
+  const copy = startCopy(locale)
+  if (!mode || !target || !['GUIDED', 'HUMAN_LED', 'AI_LED', 'DELEGATED'].includes(mode)
+    || !['BEGINNER', 'PRACTITIONER', 'EXPERT'].includes(expertise)) {
+    return { kind: 'error', text: locale === 'zh-CN'
+      ? '未创建学习合同：必须填写学习目标，并选择有效的委托模式和熟悉程度。'
+      : 'Learning Contract was not created: target, valid mode, and expertise are required.' }
   }
   const taskId = String(invocation.agent.session.id)
   const targetId = `target-${sha256(target).slice(7, 15)}`
   const contract = {
     schema_version: 'ai-coding-learning-loop.learning-contract.v1',
     task_id: taskId,
-    goal,
+    goal: goalForMode(mode),
     mode,
+    learner_profile: { expertise, locale },
     learning_targets: [{
       id: targetId,
       mastery: requiredGateLevels(mode).at(-1),
@@ -317,21 +458,21 @@ async function startContract(commandCtx, session, invocation) {
     signal: invocation.signal,
     questions: [{
       id: 'accept-learning-contract',
-      header: 'Confirm',
-      question: 'Accept this Learning Contract before implementation begins?',
+      header: locale === 'zh-CN' ? '确认合同' : 'Confirm',
+      question: copy.confirmQuestion,
       detail: JSON.stringify(contract, null, 2),
       options: [
-        { label: 'Accept', description: 'Persist this contract and begin the learning loop.' },
-        { label: 'Cancel', description: 'Persist nothing and stop.' },
+        { label: 'Accept', description: copy.acceptDescription },
+        { label: 'Cancel', description: copy.cancelDescription },
       ],
       intent: { kind: 'plan-review', approve: 'Accept' },
     }],
   })
   if (!confirmation.answers[0]?.selected?.includes('Accept')) {
-    return { kind: 'error', text: 'Learning Contract cancelled; no learning task was started.' }
+    return { kind: 'error', text: copy.cancelled }
   }
   await session.acceptContract(contract)
-  return { kind: 'success', text: `Learning Contract accepted for ${taskId} in ${mode} mode.` }
+  return { kind: 'success', text: copy.accepted(mode) }
 }
 
 function installCommands(ctx, session) {
@@ -348,7 +489,10 @@ function installCommands(ctx, session) {
         if (action === 'start') return startContract(commandCtx, session, invocation)
         const events = await session.ledger.read(taskId)
         if (events.length === 0) return { kind: 'error', text: 'No Learning Contract exists for this session.' }
-        if (action === 'status') return { kind: 'success', text: JSON.stringify(await session.state(taskId), null, 2) }
+        const contract = events.find(event => event.type === 'contract.accepted')?.payload?.contract
+        if (action === 'status') {
+          return { kind: 'success', text: renderStatus(await session.state(taskId), contract?.learner_profile?.locale) }
+        }
         if (action === 'report') {
           return { kind: 'success', text: renderMarkdownReport(buildLearningReport(taskId, events)) }
         }

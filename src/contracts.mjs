@@ -7,6 +7,12 @@ export const DELEGATION_MODES = Object.freeze([
 
 export const LEARNING_LEVELS = Object.freeze(['EXPLAIN', 'PREDICT', 'APPLY'])
 
+export const LEARNER_EXPERTISE_LEVELS = Object.freeze([
+  'BEGINNER',
+  'PRACTITIONER',
+  'EXPERT',
+])
+
 export const GATE_RESULTS = Object.freeze(['PASS', 'RETRY', 'BLOCK'])
 
 export const ENGINEERING_RESULTS = Object.freeze(['PENDING', 'PASS', 'FAIL'])
@@ -24,6 +30,9 @@ export const WORK_UNIT_STATES = Object.freeze([
   'DISCOVER',
   'CONTRACTED',
   'BRIEFED',
+  'PLANNING',
+  'AWAITING_PLAN_REVIEW',
+  'PLAN_APPROVED',
   'BUILDING',
   'VERIFYING',
   'DELIVERING',
@@ -93,6 +102,15 @@ export function validateLearningContract(contract) {
     errors.push('change_policy must be explicit-confirmation')
   }
 
+  if (contract?.learner_profile !== undefined) {
+    if (!LEARNER_EXPERTISE_LEVELS.includes(contract.learner_profile?.expertise)) {
+      errors.push('learner_profile.expertise must be BEGINNER, PRACTITIONER, or EXPERT')
+    }
+    if (!['zh-CN', 'en'].includes(contract.learner_profile?.locale)) {
+      errors.push('learner_profile.locale must be zh-CN or en')
+    }
+  }
+
   const targetIds = new Set()
 
   for (const target of contract?.learning_targets ?? []) {
@@ -147,6 +165,23 @@ export function validateDeliverRecord(record) {
   return errors
 }
 
+export function validatePlanRecord(record) {
+  const errors = []
+  if (record?.schema_version !== 'ai-coding-learning-loop.plan.v1') {
+    errors.push('schema_version must be ai-coding-learning-loop.plan.v1')
+  }
+  if (typeof record?.work_unit_id !== 'string' || record.work_unit_id.length === 0) {
+    errors.push('work_unit_id is required')
+  }
+  for (const field of ['implementation_steps', 'verification_plan', 'learning_anchors', 'known_risks']) {
+    if (!Array.isArray(record?.[field])) errors.push(`${field} must be an array`)
+  }
+  if (record?.implementation_steps?.length === 0) errors.push('implementation_steps must not be empty')
+  if (record?.verification_plan?.length === 0) errors.push('verification_plan must not be empty')
+  if (record?.learning_anchors?.length === 0) errors.push('learning_anchors must not be empty')
+  return errors
+}
+
 export function canOpenGate(record) {
   return validateDeliverRecord(record).length === 0
 }
@@ -177,6 +212,19 @@ export function validateGateEvaluation(evaluation) {
   if (!GATE_RESULTS.includes(evaluation?.result)) errors.push('gate result is invalid')
   if (!Array.isArray(evaluation?.criterion_results) || evaluation.criterion_results.length === 0) {
     errors.push('criterion_results must explain the decision')
+  } else {
+    for (const result of evaluation.criterion_results) {
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        errors.push('each criterion_result must be an object')
+        continue
+      }
+      if (typeof result.criterion !== 'string' || result.criterion.length === 0) {
+        errors.push('each criterion_result requires the exact rubric criterion')
+      }
+      if (typeof result.passed !== 'boolean') {
+        errors.push('each criterion_result requires a boolean passed value')
+      }
+    }
   }
   if (evaluation?.result !== 'PASS' && !Array.isArray(evaluation?.gap_codes)) {
     errors.push('non-PASS evaluation requires gap_codes')

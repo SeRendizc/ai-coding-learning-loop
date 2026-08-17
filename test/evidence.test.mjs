@@ -54,9 +54,21 @@ const gate = {
   rubric: ['reject at offending token', 'preserve prior parser state'],
 }
 
+const plan = {
+  schema_version: 'ai-coding-learning-loop.plan.v1',
+  work_unit_id: 'parse-core',
+  implementation_steps: ['implement the parser state transition'],
+  verification_plan: ['run parser tests'],
+  learning_anchors: ['state stack'],
+  known_risks: ['unmatched delimiters'],
+}
+
 async function reachGate(session) {
   await session.acceptContract(contract)
   await session.brief('tiny-parser', 'parse-core', ['state stack'])
+  await session.startPlan('tiny-parser', 'parse-core')
+  await session.submitPlan('tiny-parser', plan)
+  await session.recordPlanReview('tiny-parser', 'APPROVE')
   await session.startWork('tiny-parser', 'parse-core')
   await session.submitImplementation('tiny-parser', 'parse-core', 'sha256:implementation-a')
   await session.recordVerification('tiny-parser', 'parse-core', 'PASS', 'sha256:implementation-a', ['test:parser'])
@@ -110,12 +122,31 @@ test('a damaged snapshot falls back to full event replay', async t => {
   assert.equal(recovered.closed, false)
 })
 
+test('Plan REVISE returns to Planning and Build remains blocked until approval', async t => {
+  const { session } = await fixture(t)
+  await session.acceptContract(contract)
+  await session.brief('tiny-parser', 'parse-core', ['state stack'])
+  await session.startPlan('tiny-parser', 'parse-core')
+  await session.submitPlan('tiny-parser', plan)
+  await session.recordPlanReview('tiny-parser', 'REVISE')
+  assert.equal((await session.state('tiny-parser')).phase, 'PLANNING')
+  await assert.rejects(() => session.startWork('tiny-parser', 'parse-core'), /illegal transition/)
+  await session.submitPlan('tiny-parser', { ...plan, known_risks: ['revised boundary'] })
+  await session.recordPlanReview('tiny-parser', 'APPROVE')
+  assert.equal((await session.state('tiny-parser')).phase, 'PLAN_APPROVED')
+  await session.startWork('tiny-parser', 'parse-core')
+  assert.equal((await session.state('tiny-parser')).phase, 'BUILDING')
+})
+
 test('Gate RETRY survives restart, preserves engineering PASS, and stores no answer text', async t => {
   const { root, session } = await fixture(t)
   await reachGate(session)
   await session.evaluateGate('tiny-parser', 'I would probably ignore it.', {
     result: 'RETRY',
-    criterion_results: [{ criterion: 'reject at offending token', passed: false }],
+    criterion_results: [
+      { criterion: 'reject at offending token', passed: false },
+      { criterion: 'preserve prior parser state', passed: false },
+    ],
     gap_codes: ['unmatched-close'],
   })
 
@@ -132,12 +163,18 @@ test('max attempts converts RETRY to BLOCK without changing engineering evidence
   const { session } = await fixture(t)
   await reachGate(session)
   await session.evaluateGate('tiny-parser', 'first answer', {
-    result: 'RETRY', criterion_results: [{ criterion: 'c', passed: false }], gap_codes: ['gap'],
+    result: 'RETRY', criterion_results: [
+      { criterion: 'reject at offending token', passed: false },
+      { criterion: 'preserve prior parser state', passed: false },
+    ], gap_codes: ['gap'],
   })
   await session.completeDeliver('tiny-parser', deliver)
   await session.askGate('tiny-parser', { ...gate, id: 'parser-apply-2' })
   await session.evaluateGate('tiny-parser', 'second answer', {
-    result: 'RETRY', criterion_results: [{ criterion: 'c', passed: false }], gap_codes: ['gap'],
+    result: 'RETRY', criterion_results: [
+      { criterion: 'reject at offending token', passed: false },
+      { criterion: 'preserve prior parser state', passed: false },
+    ], gap_codes: ['gap'],
   })
   const state = await session.state('tiny-parser')
   assert.equal(state.engineering_status, 'PASS')
@@ -166,7 +203,10 @@ test('report exposes dual status and labels knowledge debt as missing evidence o
   await reachGate(session)
   await session.evaluateGate('tiny-parser', 'valid transfer answer', {
     result: 'PASS',
-    criterion_results: [{ criterion: 'reject at offending token', passed: true }],
+    criterion_results: [
+      { criterion: 'reject at offending token', passed: true },
+      { criterion: 'preserve prior parser state', passed: true },
+    ],
     mastered_targets: ['parser-state'],
   })
   const report = buildLearningReport('tiny-parser', await ledger.read('tiny-parser'))
