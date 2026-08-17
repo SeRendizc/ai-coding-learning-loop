@@ -8,6 +8,14 @@ class ContractContext {
   #effects = []
   #listeners = new Map()
 
+  constructor() {
+    this.registeredTools = new Map()
+    this.tools = { register: definition => {
+      this.registeredTools.set(definition.name, definition)
+      return () => this.registeredTools.delete(definition.name)
+    } }
+  }
+
   effect(acquire) {
     this.#effects.push(acquire())
   }
@@ -63,6 +71,7 @@ test('exports the loader metadata required by the Harness bundle', () => {
 test('observes pre-execute while preserving the exact downstream decision', async () => {
   const ctx = new ContractContext()
   apply(ctx)
+  assert.ok(ctx.registeredTools.has('ownership_lifecycle'))
   const downstream = Object.freeze({ kind: 'deny', reason: 'policy denied this call' })
   let downstreamCalls = 0
 
@@ -127,6 +136,7 @@ test('unload removes listeners and clears the probe state', () => {
 
   assert.equal(ctx.listenerCount('tools/pre-execute'), 0)
   assert.equal(ctx.listenerCount('tools/result'), 0)
+  assert.equal(ctx.registeredTools.has('ownership_lifecycle'), false)
   assert.deepEqual(getProbeSnapshot(ctx), {
     active: false,
     totalObserved: 0,

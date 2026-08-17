@@ -89,6 +89,141 @@ function append(state, entry) {
   if (state.entries.length > state.maxEntries) state.entries.shift()
 }
 
+function requiredString(value, field) {
+  if (typeof value !== 'string' || value.trim().length === 0) throw new TypeError(`${field} is required`)
+  return value.trim()
+}
+
+function requiredStringArray(value, field) {
+  if (!Array.isArray(value) || value.length === 0 || value.some(item => typeof item !== 'string' || item.length === 0)) {
+    throw new TypeError(`${field} must be a non-empty string array`)
+  }
+  return value
+}
+
+function requiredObject(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`${field} must be an object`)
+  return value
+}
+
+function taskIdForExecution(exec) {
+  const taskId = exec?.agent?.session?.id
+  if (typeof taskId !== 'string' || taskId.length === 0) {
+    throw new Error('ownership_lifecycle requires a calling agent with a session')
+  }
+  return taskId
+}
+
+function currentUserAnswerSha256(exec) {
+  const messages = exec?.agent?.session?.deriveMessages?.()
+  if (!Array.isArray(messages)) throw new Error('Harness session messages are unavailable for Gate evidence')
+  const message = [...messages].reverse().find(candidate => candidate?.role === 'user')
+  if (!message || !Array.isArray(message.content) || message.content.length === 0) {
+    throw new Error('Gate answer requires a current user message')
+  }
+  return sha256(message.content)
+}
+
+function lifecycleTool(session) {
+  return {
+    name: 'ownership_lifecycle',
+    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use only after /ownership start has created an accepted contract.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['action'],
+      properties: {
+        action: {
+          type: 'string',
+          enum: [
+            'status', 'brief', 'start_work', 'submit_implementation', 'record_verification',
+            'start_revision', 'complete_deliver', 'ask_gate', 'record_gate_answer',
+            'evaluate_gate', 'invalidate_implementation',
+          ],
+        },
+        work_unit_id: { type: 'string' },
+        topics: { type: 'array', items: { type: 'string' } },
+        implementation_ref: { type: 'string' },
+        verification_result: { type: 'string', enum: ['PASS', 'FAIL'] },
+        verification_refs: { type: 'array', items: { type: 'string' } },
+        deliver_record: { type: 'object', additionalProperties: true },
+        gate_case: { type: 'object', additionalProperties: true },
+        gate_evaluation: { type: 'object', additionalProperties: true },
+        next_implementation_ref: { type: 'string' },
+      },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      const input = requiredObject(args, 'arguments')
+      const action = requiredString(input.action, 'action')
+      const taskId = taskIdForExecution(exec)
+      switch (action) {
+        case 'status': break
+        case 'brief':
+          await session.brief(taskId, requiredString(input.work_unit_id, 'work_unit_id'), requiredStringArray(input.topics, 'topics'))
+          break
+        case 'start_work':
+          await session.startWork(taskId, requiredString(input.work_unit_id, 'work_unit_id'))
+          break
+        case 'submit_implementation':
+          await session.submitImplementation(
+            taskId,
+            requiredString(input.work_unit_id, 'work_unit_id'),
+            requiredString(input.implementation_ref, 'implementation_ref'),
+          )
+          break
+        case 'record_verification':
+          await session.recordVerification(
+            taskId,
+            requiredString(input.work_unit_id, 'work_unit_id'),
+            requiredString(input.verification_result, 'verification_result'),
+            requiredString(input.implementation_ref, 'implementation_ref'),
+            requiredStringArray(input.verification_refs, 'verification_refs'),
+          )
+          break
+        case 'start_revision':
+          await session.startRevision(taskId, requiredString(input.work_unit_id, 'work_unit_id'))
+          break
+        case 'complete_deliver':
+          await session.completeDeliver(taskId, requiredObject(input.deliver_record, 'deliver_record'))
+          break
+        case 'ask_gate':
+          await session.askGate(taskId, requiredObject(input.gate_case, 'gate_case'))
+          break
+        case 'record_gate_answer':
+          if ((await session.state(taskId)).phase !== 'AWAITING_GATE') {
+            throw new Error('Gate answer is not currently expected')
+          }
+          await session.recordGateAnswer(taskId, currentUserAnswerSha256(exec))
+          break
+        case 'evaluate_gate':
+          await session.evaluateGateDecision(taskId, requiredObject(input.gate_evaluation, 'gate_evaluation'))
+          break
+        case 'invalidate_implementation':
+          await session.invalidateImplementation(taskId, requiredString(input.next_implementation_ref, 'next_implementation_ref'))
+          break
+        default: throw new TypeError(`unsupported ownership lifecycle action: ${action}`)
+      }
+      return { task_id: taskId, action, state: await session.state(taskId) }
+    },
+  }
+}
+
+function installLifecycleTool(ctx, session) {
+  ctx.effect(() => ctx.tools.register(lifecycleTool(session)))
+  if (typeof ctx.inject !== 'function') return
+  ctx.inject(['systemPrompt'], promptCtx => {
+    promptCtx.effect(() => promptCtx.systemPrompt.section({
+      name: 'ai-coding-learning-loop:lifecycle',
+      order: 117,
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and use ownership_lifecycle to read status and durably record each completed Brief, Build, Verify, Deliver, and Gate action. Record evidence only after the corresponding action actually occurred. Never use the tool to grant execution permission or to claim learning PASS without a current direct-user Gate answer.',
+    }))
+  })
+}
+
 /**
  * Return an immutable diagnostic view of the observations retained for one
  * mounted plugin context. This is a probe API, not durable learning evidence.
@@ -264,6 +399,8 @@ export function apply(ctx, config = {}) {
     entries: [],
   }
   const session = new LearningSession(new FileEvidenceLedger(resolveEvidenceRoot(config)))
+
+  installLifecycleTool(ctx, session)
 
   ctx.effect(() => {
     probes.set(ctx, state)

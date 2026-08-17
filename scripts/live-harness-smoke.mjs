@@ -74,10 +74,75 @@ await controller.acceptContract({
   change_policy: 'explicit-confirmation',
 })
 const beforeRestart = await controller.state('s4-live-smoke')
+const lifecycleSession = {
+  id: 's4-live-smoke',
+  messages: [],
+  deriveMessages() { return this.messages },
+}
+const lifecycleAgent = { session: lifecycleSession }
+let lifecycleCall = 0
+const record = async arguments_ => {
+  const result = await ctx.tools.execute({
+    signal: new AbortController().signal,
+    callId: `s4-lifecycle-${lifecycleCall++}`,
+    name: 'ownership_lifecycle',
+    arguments: arguments_,
+    agent: lifecycleAgent,
+  })
+  if (result.isError) throw new Error(`lifecycle action failed: ${JSON.stringify(result.content)}`)
+  return result.value
+}
+const implementationRef = 'sha256:s4-live-implementation'
+await record({ action: 'brief', work_unit_id: 'live-smoke', topics: ['Harness lifecycle boundary'] })
+await record({ action: 'start_work', work_unit_id: 'live-smoke' })
+await record({ action: 'submit_implementation', work_unit_id: 'live-smoke', implementation_ref: implementationRef })
+await record({
+  action: 'record_verification',
+  work_unit_id: 'live-smoke',
+  verification_result: 'PASS',
+  implementation_ref: implementationRef,
+  verification_refs: ['live:s4-probe'],
+})
+await record({ action: 'complete_deliver', deliver_record: {
+  schema_version: 'ai-coding-learning-loop.deliver.v1',
+  work_unit_id: 'live-smoke',
+  implementation_ref: implementationRef,
+  verification_refs: ['live:s4-probe'],
+  learning_targets: ['harness-boundary'],
+  topics_taught: [
+    'scope', 'reading-order', 'data-flow', 'design-rationale', 'invariants',
+    'failure-paths', 'verification', 'prior-knowledge-link', 'transfer-example', 'known-gaps',
+  ],
+  known_gaps: [],
+  ready_for_gate: true,
+} })
+await record({ action: 'ask_gate', gate_case: {
+  schema_version: 'ai-coding-learning-loop.gate-case.v1',
+  id: 'live-gate-apply',
+  level: 'APPLY',
+  learning_target_id: 'harness-boundary',
+  deliver_topic: 'failure-paths',
+  deliver_ref: implementationRef,
+  prompt: 'Apply the authorization boundary to a delegated tool call.',
+  rubric: ['keeps Harness authorization authoritative'],
+} })
+lifecycleSession.messages = [{
+  role: 'user',
+  content: [{ type: 'text', text: 'Delegation does not bypass Harness authorization.' }],
+}]
+await record({ action: 'record_gate_answer' })
+const lifecycleResult = await record({ action: 'evaluate_gate', gate_evaluation: {
+  result: 'PASS',
+  criterion_results: [{ criterion: 'keeps Harness authorization authoritative', passed: true }],
+  mastered_targets: ['harness-boundary'],
+} })
+if (lifecycleResult.state.phase !== 'CLOSED' || lifecycleResult.state.learning_status !== 'MASTERED') {
+  throw new Error(`lifecycle tool did not close verified learning: ${JSON.stringify(lifecycleResult)}`)
+}
 const Ledger = controller.ledger.constructor
 const restarted = new Ledger(evidenceRoot)
 const afterRestartEvents = await restarted.read('s4-live-smoke')
-if (beforeRestart.phase !== 'CONTRACTED' || afterRestartEvents.length !== 1) {
+if (beforeRestart.phase !== 'CONTRACTED' || afterRestartEvents.length !== 9) {
   throw new Error('sidecar evidence did not survive a fresh ledger instance')
 }
 
@@ -86,6 +151,7 @@ const cleanup = {
   controller_removed: plugin.getOwnershipController(pluginContext) === null,
   command_removed: !ctx.commands.list(agentView).some(command => command.name === 'ownership'),
   skill_removed: await ctx.skills.get('ai-coding-learning-loop') === undefined,
+  lifecycle_tool_removed: ctx.tools.get('ownership_lifecycle') === undefined,
 }
 if (Object.values(cleanup).some(value => value !== true)) throw new Error('Harness fiber disposal left plugin state behind')
 
@@ -104,6 +170,8 @@ const report = {
     command_registered: true,
     packaged_skill_registered: true,
     real_tool_pre_execute_and_result: true,
+    lifecycle_tool_registered: true,
+    durable_lifecycle_closed: true,
     durable_contract_recovered: true,
     fiber_cleanup: cleanup,
   },

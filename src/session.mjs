@@ -52,8 +52,34 @@ export class LearningSession {
     })
   }
 
+  async #appendProjected(input) {
+    const events = await this.ledger.read(input.task_id)
+    const state = projectTask(input.task_id, events)
+    reduceLearningEvent(state, input)
+    return this.ledger.append(input)
+  }
+
+  async #contractAndState(taskId) {
+    const events = await this.ledger.read(taskId)
+    const contract = events.find(event => event.type === 'contract.accepted')?.payload?.contract
+    if (!contract) throw new Error('task has no accepted Learning Contract')
+    return { contract, events, state: projectTask(taskId, events) }
+  }
+
+  async #requireWorkUnit(taskId, workUnitId) {
+    const current = await this.#contractAndState(taskId)
+    if (!current.contract.work_units.some(unit => unit.id === workUnitId)) {
+      throw new Error(`unknown work unit: ${String(workUnitId)}`)
+    }
+    if (current.state.active_work_unit_id && current.state.active_work_unit_id !== workUnitId) {
+      throw new Error(`active work unit is ${current.state.active_work_unit_id}`)
+    }
+    return current
+  }
+
   async brief(taskId, workUnitId, topics) {
-    return this.ledger.append({
+    await this.#requireWorkUnit(taskId, workUnitId)
+    return this.#appendProjected({
       task_id: taskId,
       type: 'work_unit.briefed',
       actor: 'agent',
@@ -63,11 +89,13 @@ export class LearningSession {
   }
 
   async startWork(taskId, workUnitId) {
-    return this.ledger.append({ task_id: taskId, type: 'work_unit.started', actor: 'runtime', work_unit_id: workUnitId })
+    await this.#requireWorkUnit(taskId, workUnitId)
+    return this.#appendProjected({ task_id: taskId, type: 'work_unit.started', actor: 'runtime', work_unit_id: workUnitId })
   }
 
   async submitImplementation(taskId, workUnitId, implementationRef) {
-    return this.ledger.append({
+    await this.#requireWorkUnit(taskId, workUnitId)
+    return this.#appendProjected({
       task_id: taskId,
       type: 'work_unit.implementation_submitted',
       actor: 'agent',
@@ -79,7 +107,8 @@ export class LearningSession {
 
   async recordVerification(taskId, workUnitId, result, implementationRef, verificationRefs) {
     if (!['PASS', 'FAIL'].includes(result)) throw new TypeError('verification result must be PASS or FAIL')
-    return this.ledger.append({
+    await this.#requireWorkUnit(taskId, workUnitId)
+    return this.#appendProjected({
       task_id: taskId,
       type: 'work_unit.verified',
       actor: 'verifier',
@@ -91,13 +120,14 @@ export class LearningSession {
 
   async completeDeliver(taskId, record) {
     const accepted = acceptDeliver(record)
-    const events = await this.ledger.read(taskId)
+    const { events, state } = await this.#requireWorkUnit(taskId, accepted.work_unit_id)
+    if (state.phase !== 'DELIVERING') throw new Error('Deliver is not currently expected')
     const verification = latest(events, 'work_unit.verified')
     if (verification?.payload?.result !== 'PASS') throw new Error('Deliver requires passing engineering verification')
     if (verification.payload.implementation_ref !== accepted.implementation_ref) {
       throw new Error('Deliver implementation_ref does not match the verified implementation')
     }
-    return this.ledger.append({
+    return this.#appendProjected({
       task_id: taskId,
       type: 'deliver.completed',
       actor: 'agent',
@@ -108,9 +138,13 @@ export class LearningSession {
   }
 
   async askGate(taskId, gateCase) {
-    const events = await this.ledger.read(taskId)
+    const { events, state } = await this.#contractAndState(taskId)
+    if (state.phase !== 'AWAITING_GATE') throw new Error('Gate is not currently expected')
     const deliver = latest(events, 'deliver.completed')?.payload
     if (!deliver) throw new Error('Gate requires a completed Deliver')
+    const asked = latest(events, 'gate.asked')
+    const evaluated = latest(events, 'gate.evaluated')
+    if (asked && (!evaluated || evaluated.seq < asked.seq)) throw new Error('an unanswered Gate is already active')
     const bound = bindGateCase(gateCase, deliver)
     return this.ledger.append({
       task_id: taskId,
@@ -122,27 +156,41 @@ export class LearningSession {
     })
   }
 
-  async evaluateGate(taskId, answer, evaluation) {
-    const accepted = acceptGateEvaluation(evaluation)
-    const events = await this.ledger.read(taskId)
-    const contract = events.find(event => event.type === 'contract.accepted')?.payload?.contract
-    const asked = latest(events, 'gate.asked')?.payload?.gate_case
-    if (!contract || !asked) throw new Error('Gate answer has no active contract and question')
-    const state = projectTask(taskId, events)
+  async recordGateAnswer(taskId, answerSha256) {
+    if (!/^sha256:[a-f0-9]{64}$/.test(answerSha256)) throw new TypeError('answerSha256 must be a SHA-256 digest')
+    const { events, state } = await this.#contractAndState(taskId)
     if (state.phase !== 'AWAITING_GATE') throw new Error('Gate answer is not currently expected')
+    const askedEvent = latest(events, 'gate.asked')
+    const asked = askedEvent?.payload?.gate_case
+    if (!asked) throw new Error('Gate answer has no active question')
+    const answered = latest(events, 'gate.answered')
+    if (answered && answered.seq > askedEvent.seq) throw new Error('the active Gate already has an answer')
+    return this.ledger.append({
+      task_id: taskId,
+      type: 'gate.answered',
+      actor: 'user',
+      refs: [asked.id, asked.deliver_ref],
+      payload: { gate_case_id: asked.id, answer_sha256: answerSha256 },
+    })
+  }
+
+  async evaluateGateDecision(taskId, evaluation) {
+    const accepted = acceptGateEvaluation(evaluation)
+    const { contract, events, state } = await this.#contractAndState(taskId)
+    const askedEvent = latest(events, 'gate.asked')
+    const asked = askedEvent?.payload?.gate_case
+    if (!contract || !asked) throw new Error('Gate answer has no active contract and question')
+    if (state.phase !== 'AWAITING_GATE') throw new Error('Gate answer is not currently expected')
+    const answered = latest(events, 'gate.answered')
+    const evaluated = latest(events, 'gate.evaluated')
+    if (!answered || answered.seq < askedEvent.seq) throw new Error('Gate evaluation requires the current user answer')
+    if (evaluated && evaluated.seq > askedEvent.seq) throw new Error('the active Gate is already evaluated')
     const nextAttempt = state.gate_attempts + 1
     const exhausted = nextAttempt >= contract.gate.max_attempts && accepted.result === 'RETRY'
     const finalEvaluation = exhausted
       ? { ...accepted, result: 'BLOCK', gap_codes: accepted.gap_codes ?? ['attempts-exhausted'] }
       : accepted
-    await this.ledger.append({
-      task_id: taskId,
-      type: 'gate.answered',
-      actor: 'user',
-      refs: [asked.id, asked.deliver_ref],
-      payload: { gate_case_id: asked.id, answer_sha256: sha256(answer) },
-    })
-    return this.ledger.append({
+    return this.#appendProjected({
       task_id: taskId,
       type: 'gate.evaluated',
       actor: 'verifier',
@@ -151,10 +199,25 @@ export class LearningSession {
     })
   }
 
+  async evaluateGate(taskId, answer, evaluation) {
+    await this.recordGateAnswer(taskId, sha256(answer))
+    return this.evaluateGateDecision(taskId, evaluation)
+  }
+
+  async startRevision(taskId, workUnitId) {
+    await this.#requireWorkUnit(taskId, workUnitId)
+    return this.#appendProjected({
+      task_id: taskId,
+      type: 'work_unit.revision_started',
+      actor: 'agent',
+      work_unit_id: workUnitId,
+    })
+  }
+
   async invalidateImplementation(taskId, nextImplementationRef) {
     const state = await this.state(taskId)
     if (!state.deliver_ref) throw new Error('there is no delivered implementation to invalidate')
-    return this.ledger.append({
+    return this.#appendProjected({
       task_id: taskId,
       type: 'implementation.invalidated',
       actor: 'runtime',
