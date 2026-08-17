@@ -5,7 +5,7 @@ a DeepSeek Harness source checkout or any of the commands on this page.
 
 ## Full local acceptance: one command
 
-Prerequisites are Git, Node.js `24.x` (or `22.19+`), Corepack, and network
+Prerequisites are Git, Node.js `24.x` (or `22.19+`), npm, and network
 access on the first run. From this repository run:
 
 ```bash
@@ -17,7 +17,7 @@ That command performs the complete local acceptance:
 1. runs the repository tests and reproduces the evaluation artifacts;
 2. checks both Harness smoke scripts for syntax;
 3. clones the exact supported Harness commit into `.local-test/` when absent;
-4. installs its locked pnpm workspace through Corepack;
+4. runs the locked `pnpm@11.7.0` through npm and installs the workspace;
 5. installs this checkout through the official `web` profile command;
 6. dumps and checks the composed profile;
 7. exercises real Cordis, System Prompt, Tools, Commands, User Questions, and

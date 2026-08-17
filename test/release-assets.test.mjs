@@ -80,6 +80,8 @@ test('local testing keeps disposable evidence and credentials out of Git', async
   assert.doesNotMatch(install, /git clone https:\/\/github\.com\/deepseek-ai\/deepseek-harness/)
   assert.match(orchestrator, /--profile', 'web'/)
   assert.match(orchestrator, /provider_call_performed/)
+  assert.match(orchestrator, /--package=pnpm@11\.7\.0/)
+  assert.doesNotMatch(orchestrator, /shell:\s*true/)
   assert.equal(manifest.scripts['verify:harness'], 'node scripts/verify-harness.mjs')
   assert.match(manifest.scripts['test:local'], /test:harness:local/)
 })

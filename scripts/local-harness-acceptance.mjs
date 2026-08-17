@@ -12,15 +12,14 @@ const dshHome = join(localRoot, 'dsh-home')
 const evidenceRoot = join(localRoot, 'evidence')
 const reportPath = join(localRoot, 'harness-live-report.json')
 const configPath = join(localRoot, 'composed-config.yml')
-const corepackHome = join(localRoot, 'corepack')
-const onWindows = process.platform === 'win32'
+const npmCache = join(localRoot, 'npm-cache')
+const npmCli = process.env.npm_execpath
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? pluginRoot,
     env: { ...process.env, ...options.env },
     encoding: 'utf8',
-    shell: onWindows,
     stdio: options.capture ? 'pipe' : 'inherit',
   })
   if (result.error) throw result.error
@@ -37,10 +36,27 @@ function run(command, args, options = {}) {
 function hasCommit() {
   const result = spawnSync('git', ['-C', harnessRoot, 'cat-file', '-e', `${commit}^{commit}`], {
     encoding: 'utf8',
-    shell: onWindows,
     stdio: 'ignore',
   })
   return result.status === 0
+}
+
+function runPnpm(args, options = {}) {
+  if (!npmCli) {
+    throw new Error('npm_execpath is unavailable; run this through npm run test:harness:local')
+  }
+  return run(process.execPath, [
+    npmCli,
+    'exec',
+    '--yes',
+    '--package=pnpm@11.7.0',
+    '--',
+    'pnpm',
+    ...args,
+  ], {
+    ...options,
+    env: { npm_config_cache: npmCache, ...options.env },
+  })
 }
 
 mkdirSync(localRoot, { recursive: true })
@@ -59,21 +75,16 @@ if (!hasCommit()) {
 }
 run('git', ['-C', harnessRoot, 'checkout', '--detach', commit])
 
-const packageManagerEnv = {
-  COREPACK_HOME: corepackHome,
-  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
-}
-run('corepack', ['pnpm', 'install', '--frozen-lockfile'], {
+runPnpm(['install', '--frozen-lockfile'], {
   cwd: harnessRoot,
-  env: packageManagerEnv,
 })
 
-const harnessEnv = { ...packageManagerEnv, DSH_HOME: dshHome }
-run('corepack', ['pnpm', 'dsh', 'plugin', '--profile', 'web', 'add', pluginRoot], {
+const harnessEnv = { DSH_HOME: dshHome }
+runPnpm(['dsh', 'plugin', '--profile', 'web', 'add', pluginRoot], {
   cwd: harnessRoot,
   env: harnessEnv,
 })
-const composedConfig = run('corepack', ['pnpm', 'dsh', '--profile', 'web', '--dump-config'], {
+const composedConfig = runPnpm(['dsh', '--profile', 'web', '--dump-config'], {
   cwd: harnessRoot,
   env: harnessEnv,
   capture: true,
