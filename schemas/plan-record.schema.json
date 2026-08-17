@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://serendizc.github.io/ai-coding-learning-loop/schemas/plan-record.schema.json",
+  "title": "AI Coding Learning Plan",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "work_unit_id",
+    "implementation_steps",
+    "verification_plan",
+    "learning_anchors",
+    "known_risks"
+  ],
+  "properties": {
+    "schema_version": { "const": "ai-coding-learning-loop.plan.v1" },
+    "work_unit_id": { "type": "string", "minLength": 1 },
+    "implementation_steps": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "verification_plan": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "learning_anchors": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "known_risks": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}
