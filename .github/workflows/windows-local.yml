@@ -1,0 +1,32 @@
+name: windows-local-acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "index.js"
+      - "package.json"
+      - "scripts/**"
+      - "skills/**"
+      - "test/**"
+      - "evaluation/**"
+      - ".github/workflows/windows-local.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  full-local-acceptance:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: workspace with spaces
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: workspace with spaces
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm run test:local

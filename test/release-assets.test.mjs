@@ -98,7 +98,11 @@ test('executable file URLs use platform-native paths', async () => {
 
 test('CI exercises local checks on both Linux and Windows', async () => {
   const workflow = await text('.github/workflows/ci.yml')
+  const windowsAcceptance = await text('.github/workflows/windows-local.yml')
   assert.match(workflow, /ubuntu-latest/)
   assert.match(workflow, /windows-latest/)
   assert.match(workflow, /npm run check:local/)
+  assert.match(windowsAcceptance, /windows-latest/)
+  assert.match(windowsAcceptance, /working-directory: workspace with spaces/)
+  assert.match(windowsAcceptance, /npm run test:local/)
 })
