@@ -161,7 +161,7 @@ function answerValue(answer) {
 function enumAnswer(answer, values) {
   const raw = answerValue(answer)
   if (!raw) return undefined
-  return values.find(value => raw === value || raw.includes(`(${value})`))
+  return values.find(value => raw === value || raw.includes(`(${value})`) || raw.includes(`（${value}）`))
 }
 
 function inferLocale(invocation, text = '') {
@@ -329,7 +329,7 @@ function renderPlan(plan, locale) {
 function planReviewCopy(locale) {
   if (locale === 'zh-CN') return {
     header: '方案审核',
-    question: '请审核这份 Plan。只有批准后 AI 才能进入实现；需要改动时可以直接选择“要求修改”并补充你的意见。',
+    question: '请审核这份 Plan。只有批准后 AI 才能进入实现；需要改动时可以选择“要求修改”并补充你的意见。',
     approve: '批准方案',
     revise: '要求修改',
     approveDescription: '批准当前 Plan，允许随后进入 Build。',
@@ -345,13 +345,12 @@ function planReviewCopy(locale) {
   }
 }
 
-async function requestNativePlanReview(userQuestions, exec, plan, locale) {
-  if (!userQuestions || typeof userQuestions.ask !== 'function' || !exec?.agent) return null
+async function requestNativePlanReview(userQuestions, signal, plan, locale) {
+  if (!userQuestions || typeof userQuestions.ask !== 'function') return null
   const copy = planReviewCopy(locale)
   try {
     const response = await userQuestions.ask({
-      agent: exec.agent,
-      signal: exec.signal,
+      signal,
       questions: [{
         id: 'ownership-plan-review',
         header: copy.header,
@@ -371,7 +370,7 @@ async function requestNativePlanReview(userQuestions, exec, plan, locale) {
     if (selected.includes(copy.revise) || feedback) return { decision: 'REVISE', feedback }
     return null
   } catch (error) {
-    if (error?.code === 'NO_PROVIDER') return null
+    if (error?.code === 'NO_PROVIDER' || /provider/i.test(String(error?.message ?? ''))) return null
     throw error
   }
 }
@@ -478,7 +477,7 @@ function lifecycleTool(session, interaction) {
           const context = await session.context(taskId)
           const nativeReview = await requestNativePlanReview(
             interaction.userQuestions,
-            exec,
+            exec.signal,
             plan,
             context.contract.learner_profile?.locale,
           )
@@ -614,38 +613,63 @@ async function startContract(commandCtx, session, invocation) {
   const existingTask = inferExistingCodingTask(invocation)
   const initialLocale = inferLocale(invocation, existingTask)
   const initialCopy = startCopy(initialLocale)
-  const questions = []
+  const firstQuestions = []
   if (!existingTask) {
-    questions.push({ id: 'coding-task', header: initialLocale === 'zh-CN' ? '编码任务' : 'Coding task', question: initialCopy.taskQuestion })
+    firstQuestions.push({
+      id: 'coding-task',
+      header: initialLocale === 'zh-CN' ? '编码任务' : 'Coding task',
+      question: initialCopy.taskQuestion,
+    })
   }
-  questions.push(
-    { id: 'learning-target', header: initialLocale === 'zh-CN' ? '学习目标' : 'Learning target', question: initialCopy.targetQuestion },
-    {
-      id: 'delegation-mode',
-      header: initialLocale === 'zh-CN' ? '实现分工' : 'Responsibility split',
-      question: initialCopy.modeQuestion,
-      options: MODE_CODES.map(code => modeUi(initialLocale)[code]),
-    },
-    {
-      id: 'learner-expertise',
-      header: initialLocale === 'zh-CN' ? '熟悉程度' : 'Expertise',
-      question: initialCopy.expertiseQuestion,
-      options: EXPERTISE_CODES.map(code => expertiseUi(initialLocale)[code]),
-    },
-  )
-  const first = await commandCtx.userQuestions.ask({ agent: invocation.agent, signal: invocation.signal, questions })
-  const byId = Object.fromEntries((first.answers ?? []).map(answer => [answer.id, answer]))
-  const engineeringTask = existingTask || answerValue(byId['coding-task'])
-  const target = answerValue(byId['learning-target'])
-  const mode = enumAnswer(byId['delegation-mode'], MODE_CODES)
-  const expertise = enumAnswer(byId['learner-expertise'], EXPERTISE_CODES)
+  firstQuestions.push({
+    id: 'learning-target',
+    header: initialLocale === 'zh-CN' ? '学习目标' : 'Learning target',
+    question: initialCopy.targetQuestion,
+  })
+
+  const first = await commandCtx.userQuestions.ask({
+    agent: invocation.agent,
+    signal: invocation.signal,
+    questions: firstQuestions,
+  })
+  const firstById = Object.fromEntries((first.answers ?? []).map(answer => [answer.id, answer]))
+  const engineeringTask = existingTask || answerValue(firstById['coding-task'])
+  const target = answerValue(firstById['learning-target'])
   const locale = inferLocale(invocation, `${engineeringTask ?? ''}\n${target ?? ''}`)
   const copy = startCopy(locale)
-  if (!engineeringTask || !target || !mode || !expertise) {
+  if (!engineeringTask || !target) {
     return { kind: 'error', text: locale === 'zh-CN'
-      ? '未创建学习合同：编码任务、学习目标、分工方式和熟悉程度都需要填写。'
-      : 'Learning Contract was not created: coding task, learning target, responsibility split, and expertise are required.' }
+      ? '未创建学习合同：编码任务和学习目标都需要填写。'
+      : 'Learning Contract was not created: coding task and learning target are required.' }
   }
+
+  const responsibility = await commandCtx.userQuestions.ask({
+    agent: invocation.agent,
+    signal: invocation.signal,
+    questions: [
+      {
+        id: 'delegation-mode',
+        header: locale === 'zh-CN' ? '实现分工' : 'Responsibility split',
+        question: copy.modeQuestion,
+        options: MODE_CODES.map(code => modeUi(locale)[code]),
+      },
+      {
+        id: 'learner-expertise',
+        header: locale === 'zh-CN' ? '熟悉程度' : 'Expertise',
+        question: copy.expertiseQuestion,
+        options: EXPERTISE_CODES.map(code => expertiseUi(locale)[code]),
+      },
+    ],
+  })
+  const responsibilityById = Object.fromEntries((responsibility.answers ?? []).map(answer => [answer.id, answer]))
+  const mode = enumAnswer(responsibilityById['delegation-mode'], MODE_CODES)
+  const expertise = enumAnswer(responsibilityById['learner-expertise'], EXPERTISE_CODES)
+  if (!mode || !expertise) {
+    return { kind: 'error', text: locale === 'zh-CN'
+      ? '未创建学习合同：请选择有效的实现分工和熟悉程度。'
+      : 'Learning Contract was not created: valid responsibility split and expertise are required.' }
+  }
+
   const taskId = String(invocation.agent.session.id)
   const targetId = `target-${sha256(target).slice(7, 15)}`
   const contract = {
@@ -660,6 +684,7 @@ async function startContract(commandCtx, session, invocation) {
     gate: { max_attempts: 3, require_unseen_variant: true },
     change_policy: 'explicit-confirmation',
   }
+
   const confirmation = await commandCtx.userQuestions.ask({
     agent: invocation.agent,
     signal: invocation.signal,
@@ -697,8 +722,12 @@ function installCommands(ctx, session) {
         const events = await session.ledger.read(taskId)
         if (events.length === 0) return { kind: 'error', text: 'No Learning Contract exists for this session.' }
         const contract = events.find(event => event.type === 'contract.accepted')?.payload?.contract
-        if (action === 'status') return { kind: 'success', text: renderStatus(await session.state(taskId), contract?.learner_profile?.locale) }
-        if (action === 'report') return { kind: 'success', text: renderMarkdownReport(buildLearningReport(taskId, events)) }
+        if (action === 'status') {
+          return { kind: 'success', text: renderStatus(await session.state(taskId), contract?.learner_profile?.locale) }
+        }
+        if (action === 'report') {
+          return { kind: 'success', text: renderMarkdownReport(buildLearningReport(taskId, events)) }
+        }
         return { kind: 'error', text: 'Usage: /ownership start | status | report' }
       },
     })
