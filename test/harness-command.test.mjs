@@ -273,7 +273,7 @@ test('model status exposes authoritative contract context and Plan schema is str
   assert.equal(planSchema.properties.known_risks.type, 'array')
 })
 
-test('submit_plan opens native Plan Review and records approval without chat approval', async t => {
+test('submit_plan opens native Plan Review while durable evidence stores only decision and plan_ref', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext([
@@ -301,7 +301,9 @@ test('submit_plan opens native Plan Review and records approval without chat app
   assert.deepEqual(reviewRequest.questions[0].intent, { kind: 'plan-review', approve: 'Approve Plan' })
   assert.match(reviewRequest.questions[0].detail, /Implementation Plan/)
   const events = await getOwnershipController(ctx).ledger.read('session-native-review')
-  assert.equal(events.find(event => event.type === 'plan.reviewed').payload.review_source, 'user-question')
+  const reviewPayload = events.find(event => event.type === 'plan.reviewed').payload
+  assert.deepEqual(Object.keys(reviewPayload).sort(), ['decision', 'plan_ref'])
+  assert.equal(reviewPayload.decision, 'APPROVE')
 })
 
 test('native Plan revision keeps feedback transient and durable state returns to Planning', async t => {
