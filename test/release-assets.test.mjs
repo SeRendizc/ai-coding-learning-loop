@@ -82,6 +82,8 @@ test('local testing keeps disposable evidence and credentials out of Git', async
   assert.match(orchestrator, /provider_call_performed/)
   assert.match(orchestrator, /pnpm@11\.7\.0/)
   assert.match(orchestrator, /pnpm\.cjs/)
+  assert.match(orchestrator, /packageManagerBin/)
+  assert.match(orchestrator, /delimiter/)
   assert.doesNotMatch(orchestrator, /npmCli,\s*'exec'/)
   assert.doesNotMatch(orchestrator, /shell:\s*true/)
   assert.equal(manifest.scripts['verify:harness'], 'node scripts/verify-harness.mjs')

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { delimiter, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repository = 'https://github.com/deepseek-ai/deepseek-harness.git'
@@ -15,7 +15,9 @@ const configPath = join(localRoot, 'composed-config.yml')
 const npmCache = join(localRoot, 'npm-cache')
 const packageManagerRoot = join(localRoot, 'package-manager')
 const pnpmCli = join(packageManagerRoot, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
+const packageManagerBin = join(packageManagerRoot, 'node_modules', '.bin')
 const npmCli = process.env.npm_execpath
+const pathKey = Object.keys(process.env).find(key => key.toLowerCase() === 'path') ?? 'PATH'
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -46,7 +48,11 @@ function hasCommit() {
 function runPnpm(args, options = {}) {
   return run(process.execPath, [pnpmCli, ...args], {
     ...options,
-    env: { npm_config_cache: npmCache, ...options.env },
+    env: {
+      npm_config_cache: npmCache,
+      [pathKey]: `${packageManagerBin}${delimiter}${process.env[pathKey] ?? ''}`,
+      ...options.env,
+    },
   })
 }
 
