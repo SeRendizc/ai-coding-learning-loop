@@ -13,6 +13,8 @@ const evidenceRoot = join(localRoot, 'evidence')
 const reportPath = join(localRoot, 'harness-live-report.json')
 const configPath = join(localRoot, 'composed-config.yml')
 const npmCache = join(localRoot, 'npm-cache')
+const packageManagerRoot = join(localRoot, 'package-manager')
+const pnpmCli = join(packageManagerRoot, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
 const npmCli = process.env.npm_execpath
 
 function run(command, args, options = {}) {
@@ -42,18 +44,7 @@ function hasCommit() {
 }
 
 function runPnpm(args, options = {}) {
-  if (!npmCli) {
-    throw new Error('npm_execpath is unavailable; run this through npm run test:harness:local')
-  }
-  return run(process.execPath, [
-    npmCli,
-    'exec',
-    '--yes',
-    '--package=pnpm@11.7.0',
-    '--',
-    'pnpm',
-    ...args,
-  ], {
+  return run(process.execPath, [pnpmCli, ...args], {
     ...options,
     env: { npm_config_cache: npmCache, ...options.env },
   })
@@ -74,6 +65,21 @@ if (!hasCommit()) {
   run('git', ['-C', harnessRoot, 'fetch', '--depth=1', 'origin', commit])
 }
 run('git', ['-C', harnessRoot, 'checkout', '--detach', commit])
+
+if (!existsSync(pnpmCli)) {
+  if (!npmCli) {
+    throw new Error('npm_execpath is unavailable; run this through npm run test:harness:local')
+  }
+  run(process.execPath, [
+    npmCli,
+    'install',
+    '--prefix',
+    packageManagerRoot,
+    '--no-save',
+    '--ignore-scripts',
+    'pnpm@11.7.0',
+  ], { env: { npm_config_cache: npmCache } })
+}
 
 runPnpm(['install', '--frozen-lockfile'], {
   cwd: harnessRoot,
