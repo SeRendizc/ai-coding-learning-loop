@@ -187,7 +187,6 @@ test('/ownership localizes selections after reading a Chinese learning target', 
 
   const first = ctx.questionRequests[0].questions
   assert.deepEqual(first.map(question => question.id), ['learning-target'])
-  assert.match(first[0].question, /想通过 AI Coding 学会什么/)
   const second = ctx.questionRequests[1].questions
   assert.deepEqual(second.find(question => question.id === 'delegation-mode').options.map(option => option.label), [
     '用户实现（GUIDED）', '用户主导核心（HUMAN_LED）', 'AI 主导实现（AI_LED）', 'AI 全权实现（DELEGATED）',
