@@ -93,6 +93,7 @@ test('executable file URLs use platform-native paths', async () => {
     assert.match(source, /fileURLToPath/)
     assert.doesNotMatch(source, /\.pathname/)
   }
+  assert.match(evaluationVerifier, /normalizeLineEndings/)
 })
 
 test('CI exercises local checks on both Linux and Windows', async () => {

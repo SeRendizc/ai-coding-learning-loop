@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
+const normalizeLineEndings = value => value.replace(/\r\n?/gu, '\n')
+
 const output = await mkdtemp(join(tmpdir(), 'learning-evaluation-'))
 try {
   const comparisonScript = fileURLToPath(new URL('../examples/run-comparison.mjs', import.meta.url))
@@ -13,7 +15,9 @@ try {
   for (const filename of ['comparison-report.json', 'comparison-report.md']) {
     const expected = await readFile(new URL(`../evaluation/${filename}`, import.meta.url), 'utf8')
     const actual = await readFile(join(output, filename), 'utf8')
-    if (actual !== expected) throw new Error(`${filename} is stale; run npm run demo`)
+    if (normalizeLineEndings(actual) !== normalizeLineEndings(expected)) {
+      throw new Error(`${filename} is stale; run npm run demo`)
+    }
   }
   process.stdout.write('committed evaluation artifacts are reproducible\n')
 } finally {
