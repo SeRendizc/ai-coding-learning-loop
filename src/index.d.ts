@@ -18,6 +18,8 @@ export interface WorkUnit {
 export interface PlanRecord {
   schema_version: 'ai-coding-learning-loop.plan.v1'
   work_unit_id: string
+  /** New Harness plans include the concrete coding scope here; optional only for recovered legacy v1 records. */
+  engineering_task?: string
   implementation_steps: string[]
   verification_plan: string[]
   learning_anchors: string[]
@@ -27,7 +29,7 @@ export interface PlanRecord {
 export interface LearningContract {
   schema_version: 'ai-coding-learning-loop.learning-contract.v1'
   task_id: string
-  /** Explicit coding task; optional only for backwards-compatible recovered v1 evidence. */
+  /** Legacy v1 field. New Harness onboarding keeps concrete coding scope in the reviewed Plan instead. */
   engineering_task?: string
   goal: string
   mode: DelegationMode

@@ -98,6 +98,7 @@ await record({ action: 'start_plan', work_unit_id: 'live-smoke' })
 await record({ action: 'submit_plan', plan_record: {
   schema_version: 'ai-coding-learning-loop.plan.v1',
   work_unit_id: 'live-smoke',
+  engineering_task: 'exercise the Harness lifecycle boundary without replacing host authorization',
   implementation_steps: ['exercise the Harness lifecycle boundary'],
   verification_plan: ['run the live S4 probe'],
   learning_anchors: ['Harness lifecycle boundary'],

@@ -179,18 +179,6 @@ function inferLocale(invocation, text = '') {
   return /^zh(?:-|$)/i.test(hostLocale) ? 'zh-CN' : 'en'
 }
 
-function inferExistingCodingTask(invocation) {
-  try {
-    return directUserMessages({ agent: invocation.agent })
-      .map(messageText)
-      .map(text => text.trim())
-      .filter(text => text.length > 0 && !text.startsWith('/'))
-      .at(-1) ?? ''
-  } catch {
-    return ''
-  }
-}
-
 function goalForMode(mode) {
   if (mode === 'DELEGATED') return 'ship-first'
   if (mode === 'GUIDED') return 'deep-learning'
@@ -243,29 +231,27 @@ function expertiseUi(locale) {
 
 function startCopy(locale) {
   if (locale === 'zh-CN') return {
-    taskQuestion: '这次要让 AI Coding 帮你完成什么编码任务？一句话就行。',
-    targetQuestion: '这次你最想通过 AI Coding 学会什么？一句话告诉我就行，具体学习点会在 Plan 里拆好给你审核。',
+    targetQuestion: '这次你想通过 AI Coding 学会什么？一句话告诉我就行，具体做什么、怎么学会在 Plan 里拆好给你审核。',
     expertiseQuestion: '你目前对这个目标有多熟？',
     modeQuestion: '这次你希望怎么分工？从你全实现到 AI 全实现都可以。',
-    confirmQuestion: '确认这次的任务、学习目标和分工方式吗？接受后 AI 会自动生成 Plan，Plan 仍需你单独批准。',
+    confirmQuestion: '确认这次的学习目标、分工方式和熟悉程度吗？接受后 AI 会提出具体编码任务和详细 Plan，再单独交给你审核。',
     acceptLabel: '接受学习合同',
     cancelLabel: '返回修改',
-    acceptDescription: '保存学习合同并自动进入 Brief 与 Plan；不会直接开始写代码。',
+    acceptDescription: '保存学习目标和责任边界，并自动进入 Brief 与 Plan；不会直接开始写代码。',
     cancelDescription: '不保存合同，返回后重新填写。',
-    accepted: queued => queued ? '学习合同已接受，正在生成 Plan；Plan 会单独弹出给你审核，批准前不会开始实现。' : '学习合同已接受。请发送“继续”生成 Plan；批准 Plan 前不会开始实现。',
+    accepted: queued => queued ? '学习合同已接受，正在生成包含具体编码任务的 Plan；Plan 会单独弹出给你审核，批准前不会开始实现。' : '学习合同已接受。请发送“继续”生成包含具体编码任务的 Plan；批准前不会开始实现。',
     cancelled: '未创建学习合同；你可以重新运行 /ownership start。',
   }
   return {
-    taskQuestion: 'What coding task should AI Coding help complete? One sentence is enough.',
-    targetQuestion: 'What do you most want to learn from this AI Coding task? One sentence is enough; AI will refine the learning anchors in the Plan for your review.',
+    targetQuestion: 'What do you want to learn through AI Coding this time? One sentence is enough; the concrete task and learning anchors will be proposed in the Plan for your review.',
     expertiseQuestion: 'How familiar are you with this target?',
     modeQuestion: 'How should implementation responsibility be split, from fully human to fully AI?',
-    confirmQuestion: 'Confirm this task, learning target, and responsibility split? After acceptance AI will generate a separate Plan that still requires your approval.',
+    confirmQuestion: 'Confirm this learning target, responsibility split, and expertise? After acceptance AI will propose the concrete coding task inside a separate Plan for your review.',
     acceptLabel: 'Accept Learning Contract',
     cancelLabel: 'Revise inputs',
-    acceptDescription: 'Persist the contract and automatically move to Brief and Plan; no implementation starts yet.',
+    acceptDescription: 'Persist learning intent and ownership, then automatically move to Brief and Plan; no implementation starts yet.',
     cancelDescription: 'Persist nothing and return to edit the inputs.',
-    accepted: queued => queued ? 'Learning Contract accepted. AI is generating the Plan; implementation remains blocked until you approve that Plan.' : 'Learning Contract accepted. Send “continue” to generate the Plan; implementation remains blocked until approval.',
+    accepted: queued => queued ? 'Learning Contract accepted. AI is generating a Plan that includes the concrete coding task; implementation remains blocked until you approve it.' : 'Learning Contract accepted. Send “continue” to generate a Plan with the concrete coding task; implementation remains blocked until approval.',
     cancelled: 'Learning Contract was not created; run /ownership start again when ready.',
   }
 }
@@ -277,22 +263,20 @@ function renderContractSummary(contract) {
   const target = contract.learning_targets[0]?.description ?? ''
   if (locale === 'zh-CN') {
     return `## 学习合同\n\n`
-      + `- **编码任务**：${contract.engineering_task}\n`
       + `- **学习目标**：${target}\n`
       + `- **分工方式**：${mode.label}\n`
       + `  - ${mode.description}\n`
       + `- **当前熟悉程度**：${expertise?.label ?? contract.learner_profile?.expertise}\n`
       + `- **理解验证**：最多 ${contract.gate.max_attempts} 次；需要新的迁移题，不以“测试通过”代替你真正理解。\n\n`
-      + `接受这份合同只确认任务、学习目标和分工，**不等于批准代码执行**。后续 Plan 会单独审核。`
+      + `具体编码任务和实现范围会由 AI 在 Plan 中提出并单独交你审核。接受这份合同只确认学习目标和责任边界，**不等于批准代码执行**。`
   }
   return `## Learning Contract\n\n`
-    + `- **Coding task**: ${contract.engineering_task}\n`
     + `- **Learning target**: ${target}\n`
     + `- **Responsibility split**: ${mode.label}\n`
     + `  - ${mode.description}\n`
     + `- **Current expertise**: ${expertise?.label ?? contract.learner_profile?.expertise}\n`
     + `- **Transfer Gate**: at most ${contract.gate.max_attempts} attempts with an unseen variant.\n\n`
-    + `Accepting this contract does **not** approve implementation. The Plan is reviewed separately.`
+    + `The concrete coding task and implementation scope will be proposed in the separate Plan. Accepting this contract confirms learning intent and ownership; it does **not** approve implementation.`
 }
 
 function renderStatus(state, locale) {
@@ -314,12 +298,14 @@ function renderPlan(plan, locale) {
   const section = (title, items) => `### ${title}\n${items.map((item, index) => `${index + 1}. ${item}`).join('\n') || '- 无'}\n`
   if (locale === 'zh-CN') {
     return `## 实现方案\n\n`
+      + `### 本次编码任务\n${plan.engineering_task}\n\n`
       + section('实现步骤', plan.implementation_steps)
       + `\n${section('验证方案', plan.verification_plan)}`
       + `\n${section('学习锚点', plan.learning_anchors)}`
       + `\n${section('已知风险', plan.known_risks)}`
   }
   return `## Implementation Plan\n\n`
+    + `### Coding task\n${plan.engineering_task}\n\n`
     + section('Implementation steps', plan.implementation_steps)
     + `\n${section('Verification', plan.verification_plan)}`
     + `\n${section('Learning anchors', plan.learning_anchors)}`
@@ -329,19 +315,19 @@ function renderPlan(plan, locale) {
 function planReviewCopy(locale) {
   if (locale === 'zh-CN') return {
     header: '方案审核',
-    question: '请审核这份 Plan。只有批准后 AI 才能进入实现；需要改动时可以选择“要求修改”并补充你的意见。',
+    question: '请审核这次具体要做的编码任务和完整 Plan。只有批准后 AI 才能进入实现；需要改动时可以选择“要求修改”并补充你的意见。',
     approve: '批准方案',
     revise: '要求修改',
-    approveDescription: '批准当前 Plan，允许随后进入 Build。',
-    reviseDescription: '退回 Planning；AI 必须修改并重新提交 Plan。',
+    approveDescription: '批准当前编码任务与 Plan，允许随后进入 Build。',
+    reviseDescription: '退回 Planning；AI 必须修改任务或方案并重新提交。',
   }
   return {
     header: 'Plan review',
-    question: 'Review this Plan. Implementation remains blocked until approval; choose revision and add feedback if anything should change.',
+    question: 'Review the concrete coding task and full Plan. Implementation remains blocked until approval; choose revision and add feedback if anything should change.',
     approve: 'Approve Plan',
     revise: 'Request revision',
-    approveDescription: 'Approve this Plan and allow the later Build phase.',
-    reviseDescription: 'Return to Planning; AI must revise and resubmit.',
+    approveDescription: 'Approve this coding task and Plan and allow the later Build phase.',
+    reviseDescription: 'Return to Planning; AI must revise the task or Plan and resubmit.',
   }
 }
 
@@ -378,7 +364,12 @@ async function requestNativePlanReview(userQuestions, signal, plan, locale) {
 function buildModelContext(context) {
   const contract = context.contract
   return {
-    engineering_task: contract.engineering_task ?? contract.learning_targets?.[0]?.description ?? null,
+    engineering_task: context.latest_plan?.engineering_task ?? contract.engineering_task ?? null,
+    engineering_task_status: context.latest_plan?.engineering_task
+      ? 'proposed-in-plan'
+      : contract.engineering_task
+        ? 'legacy-contract'
+        : 'to-be-proposed-in-plan',
     mode: contract.mode,
     learner_profile: contract.learner_profile ?? null,
     learning_targets: contract.learning_targets,
@@ -413,12 +404,13 @@ function lifecycleTool(session, interaction) {
           type: 'object',
           additionalProperties: false,
           required: [
-            'schema_version', 'work_unit_id', 'implementation_steps',
+            'schema_version', 'work_unit_id', 'engineering_task', 'implementation_steps',
             'verification_plan', 'learning_anchors', 'known_risks',
           ],
           properties: {
             schema_version: { type: 'string', const: 'ai-coding-learning-loop.plan.v1' },
             work_unit_id: { type: 'string' },
+            engineering_task: { type: 'string', minLength: 1 },
             implementation_steps: { type: 'array', minItems: 1, items: { type: 'string' } },
             verification_plan: { type: 'array', minItems: 1, items: { type: 'string' } },
             learning_anchors: { type: 'array', minItems: 1, items: { type: 'string' } },
@@ -473,6 +465,7 @@ function lifecycleTool(session, interaction) {
           break
         case 'submit_plan': {
           const plan = requiredObject(input.plan_record, 'plan_record')
+          requiredString(plan.engineering_task, 'plan_record.engineering_task')
           await session.submitPlan(taskId, plan, currentUserMessageCount(exec))
           const context = await session.context(taskId)
           const nativeReview = await requestNativePlanReview(
@@ -570,7 +563,7 @@ function installLifecycleTool(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:lifecycle',
       order: 117,
-      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first; status returns the contracted coding task, learning target, ownership, learner profile, and current Plan context. Record Brief, a separately proposed and user-approved Plan, Build, Verify, Deliver, and Gate. submit_plan opens the native Plan Review UI when available; do not duplicate that review in chat. Never start Build before Plan approval. Record evidence only after the action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the concrete engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. If none exists, inspect the workspace with read-only tools and propose a bounded task aligned to the learning target. submit_plan must include engineering_task and opens the native Plan Review UI when available. The task and implementation scope are not authoritative until the user approves that Plan. Never start Build before Plan approval. Record Brief, Plan, Build, Verify, Deliver, and Gate evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
     }))
   })
 }
@@ -593,8 +586,8 @@ export function getOwnershipController(ctx) {
 
 function continuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取正式合同上下文；只完成 Brief 与独立 Plan。submit_plan 会打开真正的 Plan Review。未经用户批准 Plan，禁止 start_work，也禁止任何实现或写入操作。'
-    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first to read the authoritative contract context, then perform only Brief and a separate Plan. submit_plan opens the real Plan Review. Do not call start_work or perform implementation/mutation before Plan approval.'
+    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。先用只读方式检查当前对话和工作区：如果用户此前已经提出明确的 coding request，就把它原样保留为 Plan 中的本次编码任务；如果没有，就围绕学习目标提出一个边界清晰、适合当前工作区的任务。只完成 Planning Brief 与独立 Plan，并在 plan_record.engineering_task 中明确具体任务。submit_plan 会把“编码任务 + 完整 Plan”交给用户真正审核。未经用户批准 Plan，任务范围不算确定，禁止 start_work，也禁止任何实现或写入操作。'
+    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first for learning intent, ownership, and learner profile. Inspect the current conversation and workspace read-only. If the user already made a concrete coding request, preserve it as the Plan engineering_task; otherwise propose a bounded task aligned with the learning target and workspace. Complete only the planning Brief and separate Plan, explicitly setting plan_record.engineering_task. submit_plan reviews the coding task and full Plan with the user. Until approval, the scope is not authoritative: do not call start_work or perform implementation/mutation.'
   return {
     id: `ownership-followup-${randomUUID()}`,
     role: 'user',
@@ -610,37 +603,25 @@ function queuePlanContinuation(agent, locale) {
 }
 
 async function startContract(commandCtx, session, invocation) {
-  const existingTask = inferExistingCodingTask(invocation)
-  const initialLocale = inferLocale(invocation, existingTask)
+  const initialLocale = inferLocale(invocation)
   const initialCopy = startCopy(initialLocale)
-  const firstQuestions = []
-  if (!existingTask) {
-    firstQuestions.push({
-      id: 'coding-task',
-      header: initialLocale === 'zh-CN' ? '编码任务' : 'Coding task',
-      question: initialCopy.taskQuestion,
-    })
-  }
-  firstQuestions.push({
-    id: 'learning-target',
-    header: initialLocale === 'zh-CN' ? '学习目标' : 'Learning target',
-    question: initialCopy.targetQuestion,
-  })
-
-  const first = await commandCtx.userQuestions.ask({
+  const targetResponse = await commandCtx.userQuestions.ask({
     agent: invocation.agent,
     signal: invocation.signal,
-    questions: firstQuestions,
+    questions: [{
+      id: 'learning-target',
+      header: initialLocale === 'zh-CN' ? '学习目标' : 'Learning target',
+      question: initialCopy.targetQuestion,
+    }],
   })
-  const firstById = Object.fromEntries((first.answers ?? []).map(answer => [answer.id, answer]))
-  const engineeringTask = existingTask || answerValue(firstById['coding-task'])
-  const target = answerValue(firstById['learning-target'])
-  const locale = inferLocale(invocation, `${engineeringTask ?? ''}\n${target ?? ''}`)
+  const targetAnswer = targetResponse.answers?.find(answer => answer.id === 'learning-target')
+  const target = answerValue(targetAnswer)
+  const locale = inferLocale(invocation, target ?? '')
   const copy = startCopy(locale)
-  if (!engineeringTask || !target) {
+  if (!target) {
     return { kind: 'error', text: locale === 'zh-CN'
-      ? '未创建学习合同：编码任务和学习目标都需要填写。'
-      : 'Learning Contract was not created: coding task and learning target are required.' }
+      ? '未创建学习合同：请先填写这次想学会什么。'
+      : 'Learning Contract was not created: a learning target is required.' }
   }
 
   const responsibility = await commandCtx.userQuestions.ask({
@@ -675,7 +656,6 @@ async function startContract(commandCtx, session, invocation) {
   const contract = {
     schema_version: 'ai-coding-learning-loop.learning-contract.v1',
     task_id: taskId,
-    engineering_task: engineeringTask,
     goal: goalForMode(mode),
     mode,
     learner_profile: { expertise, locale },

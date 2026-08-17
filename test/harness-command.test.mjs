@@ -51,11 +51,8 @@ class CommandContext {
   }
 }
 
-function intakeAnswers({ task = 'implement retry handling', target = 'event replay' } = {}) {
-  return { answers: [
-    { id: 'coding-task', selected: [], custom: task },
-    { id: 'learning-target', selected: [], custom: target },
-  ] }
+function learningTargetAnswer({ target = 'event replay' } = {}) {
+  return { answers: [{ id: 'learning-target', selected: [], custom: target }] }
 }
 
 function responsibilityAnswers({ mode = 'DELEGATED', expertise = 'PRACTITIONER', locale = 'en' } = {}) {
@@ -89,9 +86,9 @@ function confirmation(selected = 'Accept Learning Contract') {
 }
 
 function contractAnswers(options = {}) {
-  const locale = options.locale ?? (/[㐀-鿿]/u.test(`${options.task ?? ''}${options.target ?? ''}`) ? 'zh-CN' : 'en')
+  const locale = options.locale ?? (/[㐀-鿿]/u.test(options.target ?? '') ? 'zh-CN' : 'en')
   return [
-    intakeAnswers(options),
+    learningTargetAnswer(options),
     responsibilityAnswers({ ...options, locale }),
     confirmation(locale === 'zh-CN' ? '接受学习合同' : 'Accept Learning Contract'),
   ]
@@ -128,7 +125,7 @@ test('Harness bundle registers Skill, lifecycle tool, and system guidance', asyn
   assert.match(ctx.skill.content, /Deliver completely/)
   assert.match(ctx.skill.resourceBase.path, /skills[/\\]ai-coding-learning-loop$/)
   assert.equal(ctx.lifecycleTool.name, 'ownership_lifecycle')
-  assert.match(ctx.promptSection.text, /user-approved Plan/)
+  assert.match(ctx.promptSection.text, /engineering task is proposed inside the Plan/)
 })
 
 test('Cordis configuration seam applies defaults and rejects invalid values', () => {
@@ -143,11 +140,10 @@ test('Cordis configuration seam applies defaults and rejects invalid values', ()
   assert.deepEqual(invalid.issues.map(issue => issue.path), [['maxEntries'], ['evidenceRoot']])
 })
 
-test('/ownership start separates coding task from learning target and shows a readable contract', async t => {
+test('/ownership start asks one free-text learning target and keeps coding scope for Plan', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
-    task: 'implement durable event replay',
     target: 'understand event replay',
     mode: 'DELEGATED',
     expertise: 'PRACTITIONER',
@@ -160,26 +156,26 @@ test('/ownership start separates coding task from learning target and shows a re
   const events = await getOwnershipController(ctx).ledger.read('session-1')
   assert.equal(events.length, 1)
   const contract = events[0].payload.contract
-  assert.equal(contract.engineering_task, 'implement durable event replay')
+  assert.equal(contract.engineering_task, undefined)
   assert.equal(contract.learning_targets[0].description, 'understand event replay')
   assert.equal(contract.mode, 'DELEGATED')
   assert.deepEqual(contract.learner_profile, { expertise: 'PRACTITIONER', locale: 'en' })
   assert.equal(contract.learning_targets[0].mastery, 'APPLY')
 
-  assert.deepEqual(ctx.questionRequests[0].questions.map(question => question.id), ['coding-task', 'learning-target'])
+  assert.deepEqual(ctx.questionRequests[0].questions.map(question => question.id), ['learning-target'])
   assert.deepEqual(ctx.questionRequests[1].questions.map(question => question.id), ['delegation-mode', 'learner-expertise'])
   const contractQuestion = ctx.questionRequests[2].questions[0]
   assert.equal(contractQuestion.intent, undefined)
   assert.match(contractQuestion.detail, /Learning Contract/)
+  assert.match(contractQuestion.detail, /concrete coding task.*separate Plan/i)
   assert.doesNotMatch(contractQuestion.detail, /schema_version/)
   assert.doesNotMatch(contractQuestion.detail, /task_id/)
 })
 
-test('/ownership localizes responsibility after reading Chinese task and target', async t => {
+test('/ownership localizes selections after reading a Chinese learning target', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
-    task: '实现可靠重试',
     target: '学会设计可靠重试',
     mode: 'AI_LED',
     expertise: 'PRACTITIONER',
@@ -189,6 +185,9 @@ test('/ownership localizes responsibility after reading Chinese task and target'
   const { result } = await createContract(ctx, 'session-labels')
   assert.match(result.text, /学习合同已接受/)
 
+  const first = ctx.questionRequests[0].questions
+  assert.deepEqual(first.map(question => question.id), ['learning-target'])
+  assert.match(first[0].question, /想通过 AI Coding 学会什么/)
   const second = ctx.questionRequests[1].questions
   assert.deepEqual(second.find(question => question.id === 'delegation-mode').options.map(option => option.label), [
     '用户实现（GUIDED）', '用户主导核心（HUMAN_LED）', 'AI 主导实现（AI_LED）', 'AI 全权实现（DELEGATED）',
@@ -200,11 +199,11 @@ test('/ownership localizes responsibility after reading Chinese task and target'
   assert.deepEqual(events[0].payload.contract.learner_profile, { expertise: 'PRACTITIONER', locale: 'zh-CN' })
 })
 
-test('/ownership start automatically queues Plan continuation through Agent.followup', async t => {
+test('/ownership start automatically queues Plan continuation with task-proposal boundary', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
-    task: '实现可靠重试', target: '学会设计可靠重试', mode: 'AI_LED', expertise: 'PRACTITIONER', locale: 'zh-CN',
+    target: '学会设计可靠重试', mode: 'AI_LED', expertise: 'PRACTITIONER', locale: 'zh-CN',
   }))
   apply(ctx, { evidenceRoot: root })
   const queued = []
@@ -214,14 +213,16 @@ test('/ownership start automatically queues Plan continuation through Agent.foll
   assert.equal(queued[0].role, 'user')
   assert.deepEqual(queued[0].source, { kind: 'plugin', plugin: 'ai-coding-learning-loop' })
   assert.match(queued[0].content[0].text, /ownership_lifecycle status/)
-  assert.match(result.text, /正在生成 Plan/)
+  assert.match(queued[0].content[0].text, /plan_record\.engineering_task/)
+  assert.match(queued[0].content[0].text, /未经用户批准 Plan，任务范围不算确定/)
+  assert.match(result.text, /正在生成包含具体编码任务的 Plan/)
 })
 
 test('/ownership start persists nothing when confirmation is cancelled', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext([
-    intakeAnswers({ task: 'implement parser', target: 'parser state' }),
+    learningTargetAnswer({ target: 'parser state' }),
     responsibilityAnswers({ mode: 'GUIDED', expertise: 'BEGINNER', locale: 'en' }),
     confirmation('Revise inputs'),
   ])
@@ -246,18 +247,19 @@ test('/ownership status is a human command and missing contracts fail closed', a
   assert.deepEqual(result, { kind: 'error', text: 'No Learning Contract exists for this session.' })
 })
 
-test('model status exposes authoritative contract context and Plan schema is strict at tool boundary', async t => {
+test('model status leaves coding scope uncommitted before Plan and Plan schema requires it', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
-    task: 'implement retry policy', target: 'understand retry budgets', mode: 'AI_LED', expertise: 'PRACTITIONER', locale: 'en',
+    target: 'understand retry budgets', mode: 'AI_LED', expertise: 'PRACTITIONER', locale: 'en',
   }))
   apply(ctx, { evidenceRoot: root })
   const session = harnessSession('session-context')
   const exec = { agent: { session }, signal: new AbortController().signal }
   await ctx.command.handler({ rawInput: 'start', ...exec })
   const status = await ctx.lifecycleTool.execute({ action: 'status' }, exec)
-  assert.equal(status.context.engineering_task, 'implement retry policy')
+  assert.equal(status.context.engineering_task, null)
+  assert.equal(status.context.engineering_task_status, 'to-be-proposed-in-plan')
   assert.equal(status.context.mode, 'AI_LED')
   assert.equal(status.context.work_units[0].id, 'task-main')
   assert.equal(status.context.learning_targets[0].description, 'understand retry budgets')
@@ -265,30 +267,40 @@ test('model status exposes authoritative contract context and Plan schema is str
   const planSchema = ctx.lifecycleTool.parameters.properties.plan_record
   assert.equal(planSchema.additionalProperties, false)
   assert.deepEqual(planSchema.required, [
-    'schema_version', 'work_unit_id', 'implementation_steps',
+    'schema_version', 'work_unit_id', 'engineering_task', 'implementation_steps',
     'verification_plan', 'learning_anchors', 'known_risks',
   ])
+  assert.equal(planSchema.properties.engineering_task.type, 'string')
+  assert.equal(planSchema.properties.engineering_task.minLength, 1)
   assert.equal(planSchema.properties.verification_plan.type, 'array')
   assert.equal(planSchema.properties.learning_anchors.type, 'array')
   assert.equal(planSchema.properties.known_risks.type, 'array')
+
+  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['planning context'] }, exec)
+  await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
+  await assert.rejects(() => ctx.lifecycleTool.execute({ action: 'submit_plan', plan_record: {
+    schema_version: 'ai-coding-learning-loop.plan.v1', work_unit_id: 'task-main',
+    implementation_steps: ['implement'], verification_plan: ['test'], learning_anchors: ['budget'], known_risks: [],
+  } }, exec), /plan_record\.engineering_task is required/)
 })
 
-test('submit_plan opens native Plan Review while durable evidence stores only decision and plan_ref', async t => {
+test('submit_plan reviews the concrete coding task and stores only decision and plan_ref', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext([
-    ...contractAnswers({ task: 'implement retry policy', target: 'understand retry budgets', mode: 'AI_LED', locale: 'en' }),
+    ...contractAnswers({ target: 'understand retry budgets', mode: 'AI_LED', locale: 'en' }),
     { answers: [{ id: 'ownership-plan-review', selected: ['Approve Plan'] }] },
   ])
   apply(ctx, { evidenceRoot: root })
   const session = harnessSession('session-native-review')
   const exec = { agent: { session }, signal: new AbortController().signal }
   await ctx.command.handler({ rawInput: 'start', ...exec })
-  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['retry scope'] }, exec)
+  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['retry planning context'] }, exec)
   await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
   const result = await ctx.lifecycleTool.execute({ action: 'submit_plan', plan_record: {
     schema_version: 'ai-coding-learning-loop.plan.v1',
     work_unit_id: 'task-main',
+    engineering_task: 'implement a deterministic retry policy exercise',
     implementation_steps: ['implement policy'],
     verification_plan: ['run unit tests'],
     learning_anchors: ['attempt and deadline budgets'],
@@ -300,27 +312,29 @@ test('submit_plan opens native Plan Review while durable evidence stores only de
   assert.equal(reviewRequest.agent, undefined)
   assert.deepEqual(reviewRequest.questions[0].intent, { kind: 'plan-review', approve: 'Approve Plan' })
   assert.match(reviewRequest.questions[0].detail, /Implementation Plan/)
+  assert.match(reviewRequest.questions[0].detail, /implement a deterministic retry policy exercise/)
   const events = await getOwnershipController(ctx).ledger.read('session-native-review')
   const reviewPayload = events.find(event => event.type === 'plan.reviewed').payload
   assert.deepEqual(Object.keys(reviewPayload).sort(), ['decision', 'plan_ref'])
   assert.equal(reviewPayload.decision, 'APPROVE')
 })
 
-test('native Plan revision keeps feedback transient and durable state returns to Planning', async t => {
+test('native Plan revision can revise coding scope while feedback stays transient', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext([
-    ...contractAnswers({ task: '实现重试策略', target: '理解退避与预算', mode: 'AI_LED', locale: 'zh-CN' }),
+    ...contractAnswers({ target: '理解退避与预算', mode: 'AI_LED', locale: 'zh-CN' }),
     { answers: [{ id: 'ownership-plan-review', selected: ['要求修改'], custom: '先不要做 asyncio 版本' }] },
   ])
   apply(ctx, { evidenceRoot: root })
   const session = harnessSession('session-native-revise')
   const exec = { agent: { session }, signal: new AbortController().signal }
   await ctx.command.handler({ rawInput: 'start', ...exec })
-  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['范围'] }, exec)
+  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['规划范围'] }, exec)
   await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
   const result = await ctx.lifecycleTool.execute({ action: 'submit_plan', plan_record: {
     schema_version: 'ai-coding-learning-loop.plan.v1', work_unit_id: 'task-main',
+    engineering_task: '实现同步和异步重试策略练习',
     implementation_steps: ['同步和异步实现'], verification_plan: ['pytest'],
     learning_anchors: ['预算'], known_risks: [],
   } }, exec)
@@ -335,7 +349,7 @@ test('pre-execute blocks side-effectful tools before approval and allows them in
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
-    task: 'implement retry policy', target: 'understand retry budgets', mode: 'AI_LED', locale: 'en',
+    target: 'understand retry budgets', mode: 'AI_LED', locale: 'en',
   }))
   apply(ctx, { evidenceRoot: root })
   const session = harnessSession('session-tool-policy')
@@ -360,10 +374,11 @@ test('pre-execute blocks side-effectful tools before approval and allows them in
   assert.deepEqual(readDecision, { kind: 'allow' })
 
   const call = args => ctx.lifecycleTool.execute(args, exec)
-  await call({ action: 'brief', work_unit_id: 'task-main', topics: ['scope'] })
+  await call({ action: 'brief', work_unit_id: 'task-main', topics: ['scope discovery'] })
   await call({ action: 'start_plan', work_unit_id: 'task-main' })
   await call({ action: 'submit_plan', plan_record: {
     schema_version: 'ai-coding-learning-loop.plan.v1', work_unit_id: 'task-main',
+    engineering_task: 'implement retry policy exercise',
     implementation_steps: ['implement'], verification_plan: ['test'], learning_anchors: ['budget'], known_risks: [],
   } })
   session.messages.push({ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'Approve this Plan.' }] })
@@ -381,7 +396,7 @@ test('model lifecycle durably completes Deliver and anti-bypass Gate loop', asyn
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
-    task: 'implement event replay', target: 'event replay', mode: 'DELEGATED', expertise: 'EXPERT', locale: 'en',
+    target: 'event replay', mode: 'DELEGATED', expertise: 'EXPERT', locale: 'en',
   }))
   apply(ctx, { evidenceRoot: root })
   const session = harnessSession('session-lifecycle')
@@ -394,11 +409,12 @@ test('model lifecycle durably completes Deliver and anti-bypass Gate loop', asyn
 
   const status = await call({ action: 'status' })
   assert.equal(status.state.phase, 'CONTRACTED')
-  assert.equal(status.context.engineering_task, 'implement event replay')
-  await call({ action: 'brief', work_unit_id: 'task-main', topics: ['runtime boundary'] })
+  assert.equal(status.context.engineering_task, null)
+  await call({ action: 'brief', work_unit_id: 'task-main', topics: ['runtime planning boundary'] })
   await call({ action: 'start_plan', work_unit_id: 'task-main' })
   await call({ action: 'submit_plan', plan_record: {
     schema_version: 'ai-coding-learning-loop.plan.v1', work_unit_id: 'task-main',
+    engineering_task: 'implement an event replay recovery exercise',
     implementation_steps: ['implement lifecycle boundary'], verification_plan: ['run unit test'],
     learning_anchors: ['runtime boundary'], known_risks: [],
   } })
@@ -448,7 +464,7 @@ test('model lifecycle durably completes Deliver and anti-bypass Gate loop', asyn
 test('illegal lifecycle ordering and unknown work units append no evidence', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
-  const ctx = new CommandContext(contractAnswers({ task: 'implement state transitions', target: 'state transitions', mode: 'AI_LED' }))
+  const ctx = new CommandContext(contractAnswers({ target: 'state transitions', mode: 'AI_LED' }))
   apply(ctx, { evidenceRoot: root })
   const session = harnessSession('session-reject')
   const exec = { agent: { session }, signal: new AbortController().signal }
