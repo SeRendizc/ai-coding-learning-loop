@@ -2,7 +2,7 @@
 
 Use versioned, append-only events for accepted contracts, work-unit transitions, verification, Deliver, Gate questions/answers/evaluations, gaps, mastery, and closure.
 
-Each event needs stable task/event identity, sequence, timestamp, actor, work unit, references, previous-event hash, payload digest, and a privacy-safe payload. Persist answer digests and rubric results, not free-text answers.
+Each event needs stable task/event identity, sequence, timestamp, actor, work unit, references, previous-event hash, payload digest, and a privacy-safe payload. For Gate responses, persist that a current user response was observed plus rubric results and learning state; persist neither free-text answers nor answer-content digests.
 
 Snapshots must bind an exact verified event prefix. On invalid snapshot schema, sequence, anchor, state digest, or event chain, discard the snapshot and replay original events. Never infer original facts from a formatted trace or report.
 

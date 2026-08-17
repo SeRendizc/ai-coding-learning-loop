@@ -26,7 +26,7 @@ Original events are authoritative for the learning domain. Reports and snapshots
 The DeepSeek adapter registers one model-facing `ownership_lifecycle` tool.
 It derives the task ID from the current Harness session, is exclusive by
 default, validates the existing event projection before appending, and cannot
-grant permission to execute any other tool. Gate answer recording reads the
-latest direct user message from that same session and persists only its digest.
-Gate evaluation remains a separate action so the answer and verdict have
-distinct evidence events.
+grant permission to execute any other tool. Gate answer recording requires a
+current direct user message from that same session, but persists neither the
+message nor a content digest. Gate evaluation remains a separate action so the
+response occurrence and rubric verdict have distinct evidence events.

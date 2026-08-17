@@ -137,7 +137,10 @@ export class LearningSession {
     })
   }
 
-  async askGate(taskId, gateCase) {
+  async askGate(taskId, gateCase, userMessageCountAtAsk = null) {
+    if (userMessageCountAtAsk !== null && (!Number.isSafeInteger(userMessageCountAtAsk) || userMessageCountAtAsk < 0)) {
+      throw new TypeError('userMessageCountAtAsk must be a non-negative safe integer')
+    }
     const { events, state } = await this.#contractAndState(taskId)
     if (state.phase !== 'AWAITING_GATE') throw new Error('Gate is not currently expected')
     const deliver = latest(events, 'deliver.completed')?.payload
@@ -152,17 +155,25 @@ export class LearningSession {
       actor: 'agent',
       work_unit_id: deliver.work_unit_id,
       refs: [bound.deliver_ref],
-      payload: { gate_case: bound, gate_case_sha256: sha256(bound) },
+      payload: {
+        gate_case: bound,
+        gate_case_sha256: sha256(bound),
+        ...(userMessageCountAtAsk === null ? {} : { user_message_count_at_ask: userMessageCountAtAsk }),
+      },
     })
   }
 
-  async recordGateAnswer(taskId, answerSha256) {
-    if (!/^sha256:[a-f0-9]{64}$/.test(answerSha256)) throw new TypeError('answerSha256 must be a SHA-256 digest')
+  async recordGateAnswer(taskId, currentUserMessageCount = null) {
     const { events, state } = await this.#contractAndState(taskId)
     if (state.phase !== 'AWAITING_GATE') throw new Error('Gate answer is not currently expected')
     const askedEvent = latest(events, 'gate.asked')
     const asked = askedEvent?.payload?.gate_case
     if (!asked) throw new Error('Gate answer has no active question')
+    const boundary = askedEvent.payload.user_message_count_at_ask
+    if (boundary !== undefined
+      && (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount <= boundary)) {
+      throw new Error('Gate answer requires a new direct user message after the Gate question')
+    }
     const answered = latest(events, 'gate.answered')
     if (answered && answered.seq > askedEvent.seq) throw new Error('the active Gate already has an answer')
     return this.ledger.append({
@@ -170,7 +181,7 @@ export class LearningSession {
       type: 'gate.answered',
       actor: 'user',
       refs: [asked.id, asked.deliver_ref],
-      payload: { gate_case_id: asked.id, answer_sha256: answerSha256 },
+      payload: { gate_case_id: asked.id, response_observed: true },
     })
   }
 
@@ -199,8 +210,8 @@ export class LearningSession {
     })
   }
 
-  async evaluateGate(taskId, answer, evaluation) {
-    await this.recordGateAnswer(taskId, sha256(answer))
+  async evaluateGate(taskId, _answer, evaluation) {
+    await this.recordGateAnswer(taskId)
     return this.evaluateGateDecision(taskId, evaluation)
   }
 

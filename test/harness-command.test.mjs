@@ -189,12 +189,17 @@ test('model lifecycle tool durably completes one real Deliver and Gate loop', as
     prompt: 'Apply the recovery rule to a changed event.',
     rubric: ['uses verified events', 'rejects a mismatched digest'],
   } })
+  await assert.rejects(
+    () => call({ action: 'record_gate_answer' }),
+    /new direct user message after the Gate question/,
+  )
   harnessSession.messages = [{ role: 'user', content: [{ type: 'text', text: 'Use the verified prefix and reject the bad digest.' }] }]
   await call({ action: 'record_gate_answer' })
   const answerEvents = await getOwnershipController(ctx).ledger.read('session-lifecycle')
   assert.equal(JSON.stringify(answerEvents).includes('Use the verified prefix'), false)
   const answerEvent = answerEvents.find(event => event.type === 'gate.answered')
-  assert.match(answerEvent.payload.answer_sha256, /^sha256:[a-f0-9]{64}$/)
+  assert.deepEqual(answerEvent.payload, { gate_case_id: 'gate-apply-1', response_observed: true })
+  assert.equal(JSON.stringify(answerEvent).includes('answer_sha256'), false)
   const result = await call({ action: 'evaluate_gate', gate_evaluation: {
     result: 'PASS',
     criterion_results: [

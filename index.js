@@ -114,14 +114,11 @@ function taskIdForExecution(exec) {
   return taskId
 }
 
-function currentUserAnswerSha256(exec) {
+function currentUserMessageCount(exec) {
   const messages = exec?.agent?.session?.deriveMessages?.()
   if (!Array.isArray(messages)) throw new Error('Harness session messages are unavailable for Gate evidence')
-  const message = [...messages].reverse().find(candidate => candidate?.role === 'user')
-  if (!message || !Array.isArray(message.content) || message.content.length === 0) {
-    throw new Error('Gate answer requires a current user message')
-  }
-  return sha256(message.content)
+  return messages.filter(candidate => candidate?.role === 'user'
+    && Array.isArray(candidate.content) && candidate.content.length > 0).length
 }
 
 function lifecycleTool(session) {
@@ -191,13 +188,17 @@ function lifecycleTool(session) {
           await session.completeDeliver(taskId, requiredObject(input.deliver_record, 'deliver_record'))
           break
         case 'ask_gate':
-          await session.askGate(taskId, requiredObject(input.gate_case, 'gate_case'))
+          await session.askGate(
+            taskId,
+            requiredObject(input.gate_case, 'gate_case'),
+            currentUserMessageCount(exec),
+          )
           break
         case 'record_gate_answer':
           if ((await session.state(taskId)).phase !== 'AWAITING_GATE') {
             throw new Error('Gate answer is not currently expected')
           }
-          await session.recordGateAnswer(taskId, currentUserAnswerSha256(exec))
+          await session.recordGateAnswer(taskId, currentUserMessageCount(exec))
           break
         case 'evaluate_gate':
           await session.evaluateGateDecision(taskId, requiredObject(input.gate_evaluation, 'gate_evaluation'))
