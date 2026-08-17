@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -156,12 +156,13 @@ const cleanup = {
 if (Object.values(cleanup).some(value => value !== true)) throw new Error('Harness fiber disposal left plugin state behind')
 
 const upstreamCommit = execFileSync('git', ['-C', harnessRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+const upstreamPackage = JSON.parse(await readFile(resolve(harnessRoot, 'package.json'), 'utf8'))
 const report = {
   schema_version: 'ai-coding-learning-loop.harness-live.v1',
   generated_at: new Date().toISOString(),
   upstream: {
     package: '@deepseek-ai/dsh-root',
-    version: '0.1.0-rc.5',
+    version: upstreamPackage.version,
     commit: upstreamCommit,
   },
   result: 'PASS',

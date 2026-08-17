@@ -29,6 +29,19 @@ The supported Harness revision is
 `47f943859bef60e4160492346772ded9b24f765a`; the orchestrator rejects a different
 revision instead of silently testing moving upstream code.
 
+Maintainers may exercise another immutable release ref without editing the
+script:
+
+```bash
+DSH_HARNESS_REF=dsh-v0.1.0-rc.7 npm run test:harness:local
+```
+
+The blocking test remains pinned. A separate weekly and pull-request canary
+resolves the latest published `dsh-v*` release automatically and runs the same
+live lifecycle smoke. Canary failure reports upstream drift; it does not erase
+the last-known-good baseline or require a source update for every Harness
+commit.
+
 The first run is intentionally slower because it fetches and installs the
 pinned Harness workspace. Later runs reuse `.local-test/deepseek-harness` and
 the package-manager cache. Windows, PowerShell, cmd, Bash, and WSL use the same

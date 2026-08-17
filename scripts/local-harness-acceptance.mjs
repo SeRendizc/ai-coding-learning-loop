@@ -14,7 +14,7 @@ import { delimiter, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repository = 'https://github.com/deepseek-ai/deepseek-harness.git'
-const commit = '47f943859bef60e4160492346772ded9b24f765a'
+const commit = process.env.DSH_HARNESS_REF ?? '47f943859bef60e4160492346772ded9b24f765a'
 const pluginRoot = fileURLToPath(new URL('..', import.meta.url))
 const localRoot = join(pluginRoot, '.local-test')
 const harnessRoot = join(localRoot, 'deepseek-harness')

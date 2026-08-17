@@ -5,18 +5,28 @@
 The supported first target is DeepSeek Harness `0.1.0-rc.5` at commit
 `47f943859bef60e4160492346772ded9b24f765a`.
 
-You do **not** need to clone or build the DeepSeek Harness repository. Install
-the source-preview bundle into Harness's built-in `web` profile once:
+You do **not** need to clone or build the DeepSeek Harness repository. If you
+already installed `dsh`, use that same executable for both installation and
+startup:
 
 ```bash
-npx -y @deepseek-ai/dsh@0.1.0-rc.5 plugin --profile web add github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility
+dsh --version
+dsh plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
+dsh web
 ```
 
-Then start Harness as usual:
+For a reproducible baseline without a global installation, pin both commands
+to the same verified Harness version:
 
 ```bash
+npx -y @deepseek-ai/dsh@0.1.0-rc.5 plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
 npx -y @deepseek-ai/dsh@0.1.0-rc.5 web
 ```
+
+Do not install with one `dsh` version and then start the same profile with a
+different version. Pre-release Harness versions may migrate or rewrite the
+shared profile. Quoting the GitHub package spec also prevents shells from
+misreading the branch fragment.
 
 Open `http://127.0.0.1:3080`, configure the Provider in Harness if needed, and
 run `/ownership start`. Review the proposed
@@ -41,6 +51,28 @@ Harness forwards plugin management to `pnpm`, so `pnpm` must be available on
 ```bash
 npm install --global pnpm@11.7.0
 ```
+
+If an earlier failed install may have left the shared profile inconsistent,
+retry once with a clean isolated home. This does not delete the normal Harness
+profile:
+
+```bash
+# Bash, WSL, or macOS
+DSH_HOME="$PWD/.dsh-learning-test" dsh plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
+DSH_HOME="$PWD/.dsh-learning-test" dsh web
+```
+
+```powershell
+# PowerShell
+$env:DSH_HOME = "$PWD\.dsh-learning-test"
+dsh plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
+dsh web
+```
+
+If the isolated install succeeds, the plugin is sound and the original
+profile needs inspection rather than another reinstall. Keep the full command
+output when reporting a failure; the phase that failed (`pnpm`, package fetch,
+profile patch, or Harness boot) determines the fix.
 
 For a first real task:
 

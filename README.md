@@ -14,9 +14,12 @@ contracts, event ledger, reducer, reports, presets, and Skill are host-neutral.
 Install the source preview into DeepSeek Harness's built-in Web profile once:
 
 ```bash
-npx -y @deepseek-ai/dsh@0.1.0-rc.5 plugin --profile web add github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility
-npx -y @deepseek-ai/dsh@0.1.0-rc.5 web
+dsh plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
+dsh web
 ```
+
+Use the same `dsh` executable for both commands. The pinned reproducible
+fallback and clean-profile recovery commands are in [Install and remove](docs/install.md).
 
 No Harness checkout or workspace build is required for users. Open
 `http://127.0.0.1:3080`, run `/ownership start`, select a mode and one concrete learning target, then
@@ -26,9 +29,10 @@ knowledge report. Cancellation before acceptance persists no contract.
 
 After acceptance, the packaged Skill drives the teaching protocol and the
 session-scoped `ownership_lifecycle` tool records each validated transition.
-The learner does not call that internal tool manually. Gate answers are bound
-to the latest direct user message by SHA-256; the answer text is not copied
-into the sidecar evidence.
+The learner does not call that internal tool manually. The runtime requires a
+current direct user message before recording a Gate response, but neither the
+answer text nor a content digest is copied into the sidecar evidence. Only the
+response occurrence, rubric result, gaps, and learning state are durable.
 
 | Mode | AI implementation | Learner responsibility | Required Gate |
 |---|---|---|---|

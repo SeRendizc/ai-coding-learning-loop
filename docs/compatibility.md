@@ -43,3 +43,19 @@ The reviewed report and immutable Artifact digest are committed at
 `evaluation/harness-live-report.json`.
 
 The current evidence-backend decision is therefore `sidecar-file-v1`. It avoids depending on an unverified Developer Preview persistence extension and labels the boundary in reports. Run `npm run verify:harness` whenever the pinned checkout changes.
+
+## Version policy
+
+Compatibility is release-based, not commit-chasing:
+
+- the immutable rc.5 commit above is the blocking last-known-good baseline;
+- pull requests, manual runs, and a weekly schedule resolve the latest
+  published `dsh-v*` release and execute the same live lifecycle as a
+  non-blocking canary;
+- arbitrary upstream `master` commits are not advertised as supported;
+- code changes are required only when a released Harness breaks a public seam
+  used by this adapter. A canary PASS may extend the tested-release matrix
+  without changing the adapter.
+
+This keeps existing users reproducible while providing early warning of a
+released incompatibility.
