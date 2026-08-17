@@ -85,3 +85,12 @@ test('local testing keeps disposable evidence and credentials out of Git', async
   assert.equal(manifest.scripts['verify:harness'], 'node scripts/verify-harness.mjs')
   assert.match(manifest.scripts['test:local'], /test:harness:local/)
 })
+
+test('executable file URLs use platform-native paths', async () => {
+  const cliTest = await text('test/cli.test.mjs')
+  const evaluationVerifier = await text('scripts/verify-evaluation.mjs')
+  for (const source of [cliTest, evaluationVerifier]) {
+    assert.match(source, /fileURLToPath/)
+    assert.doesNotMatch(source, /\.pathname/)
+  }
+})
