@@ -1,12 +1,21 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { delimiter, join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 const repository = 'https://github.com/deepseek-ai/deepseek-harness.git'
 const commit = '47f943859bef60e4160492346772ded9b24f765a'
 const pluginRoot = fileURLToPath(new URL('..', import.meta.url))
-const pluginSpec = pathToFileURL(pluginRoot).href
 const localRoot = join(pluginRoot, '.local-test')
 const harnessRoot = join(localRoot, 'deepseek-harness')
 const dshHome = join(localRoot, 'dsh-home')
@@ -93,32 +102,40 @@ runPnpm(['install', '--frozen-lockfile'], {
 })
 
 const harnessEnv = { DSH_HOME: dshHome }
-runPnpm(['dsh', 'plugin', '--profile', 'web', 'add', pluginSpec], {
-  cwd: harnessRoot,
-  env: harnessEnv,
-})
-const composedConfig = runPnpm(['dsh', '--profile', 'web', '--dump-config'], {
-  cwd: harnessRoot,
-  env: harnessEnv,
-  capture: true,
-})
-if (!composedConfig.includes('id: ai-coding-learning-loop')) {
-  throw new Error('the composed web profile does not contain ai-coding-learning-loop')
-}
-writeFileSync(configPath, composedConfig, 'utf8')
+const aliasRoot = mkdtempSync(join(tmpdir(), 'dsh-plugin-'))
+const pluginAlias = join(aliasRoot, 'plugin')
+symlinkSync(pluginRoot, pluginAlias, process.platform === 'win32' ? 'junction' : 'dir')
 
-run(process.execPath, [
-  '--import',
-  'tsx/esm',
-  join(pluginRoot, 'scripts', 'live-harness-smoke.mjs'),
-  harnessRoot,
-  evidenceRoot,
-  reportPath,
-], { cwd: harnessRoot })
+try {
+  runPnpm(['dsh', 'plugin', '--profile', 'web', 'add', pluginAlias], {
+    cwd: harnessRoot,
+    env: harnessEnv,
+  })
+  const composedConfig = runPnpm(['dsh', '--profile', 'web', '--dump-config'], {
+    cwd: harnessRoot,
+    env: harnessEnv,
+    capture: true,
+  })
+  if (!composedConfig.includes('id: ai-coding-learning-loop')) {
+    throw new Error('the composed web profile does not contain ai-coding-learning-loop')
+  }
+  writeFileSync(configPath, composedConfig, 'utf8')
 
-const report = JSON.parse(readFileSync(reportPath, 'utf8'))
-if (report.result !== 'PASS' || report.provider_call_performed !== false) {
-  throw new Error(`unexpected live report: ${JSON.stringify(report)}`)
+  run(process.execPath, [
+    '--import',
+    'tsx/esm',
+    join(pluginRoot, 'scripts', 'live-harness-smoke.mjs'),
+    harnessRoot,
+    evidenceRoot,
+    reportPath,
+  ], { cwd: harnessRoot })
+
+  const report = JSON.parse(readFileSync(reportPath, 'utf8'))
+  if (report.result !== 'PASS' || report.provider_call_performed !== false) {
+    throw new Error(`unexpected live report: ${JSON.stringify(report)}`)
+  }
+} finally {
+  rmSync(aliasRoot, { recursive: true, force: true })
 }
 
 process.stdout.write([

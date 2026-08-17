@@ -33,8 +33,9 @@ The first run is intentionally slower because it fetches and installs the
 pinned Harness workspace. Later runs reuse `.local-test/deepseek-harness` and
 the package-manager cache. Windows, PowerShell, cmd, Bash, and WSL use the same
 npm command; the Node orchestrator handles paths and child processes.
-The local checkout is passed to Harness as a standard `file:` URL so Windows
-paths containing spaces remain one package specifier inside Harness.
+The orchestrator gives Harness a disposable path alias for the local checkout,
+so its Windows package-manager shell does not split repository paths containing
+spaces. The alias is removed after acceptance, including on failure.
 
 Generated evidence is written under `.local-test/`:
 
