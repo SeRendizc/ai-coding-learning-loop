@@ -17,13 +17,15 @@ Verified from the pinned source contract and local adapter tests:
 - optional `skills` composition with a packaged runtime Skill and resource base;
 - stable question IDs and explicit contract confirmation.
 
-Verified live by [pinned Harness run 32017531433](https://github.com/SeRendizc/ai-coding-learning-loop/actions/runs/32017531433):
+Verified live by [pinned Harness run 32039847931](https://github.com/SeRendizc/ai-coding-learning-loop/actions/runs/32039847931):
 
 - installation through the official `dsh plugin --profile learning add` command;
 - composed-profile discovery of the bundle;
 - actual Cordis, System Prompt, Tools, Commands, User Questions, and Skills services;
 - real `tools/pre-execute` and `tools/result` observation;
-- restart-safe sidecar recovery and effect-owned Fiber cleanup.
+- model-facing `ownership_lifecycle` registration and a complete durable
+  Brief -> Build -> Verify -> Deliver -> Gate transition to `CLOSED / MASTERED`;
+- restart-safe sidecar recovery and effect-owned Fiber cleanup, including Tool removal.
 
 Not yet claimed:
 

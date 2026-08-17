@@ -17,7 +17,38 @@
       }
     },
     "result": { "enum": ["PASS", "FAIL"] },
-    "checks": { "type": "object" },
+    "checks": {
+      "type": "object",
+      "required": [
+        "actual_cordis_context",
+        "command_registered",
+        "packaged_skill_registered",
+        "real_tool_pre_execute_and_result",
+        "lifecycle_tool_registered",
+        "durable_lifecycle_closed",
+        "durable_contract_recovered",
+        "fiber_cleanup"
+      ],
+      "properties": {
+        "actual_cordis_context": { "const": true },
+        "command_registered": { "const": true },
+        "packaged_skill_registered": { "const": true },
+        "real_tool_pre_execute_and_result": { "const": true },
+        "lifecycle_tool_registered": { "const": true },
+        "durable_lifecycle_closed": { "const": true },
+        "durable_contract_recovered": { "const": true },
+        "fiber_cleanup": {
+          "type": "object",
+          "required": ["controller_removed", "command_removed", "skill_removed", "lifecycle_tool_removed"],
+          "properties": {
+            "controller_removed": { "const": true },
+            "command_removed": { "const": true },
+            "skill_removed": { "const": true },
+            "lifecycle_tool_removed": { "const": true }
+          }
+        }
+      }
+    },
     "evidence_backend": { "const": "sidecar-file-v1" },
     "provider_call_performed": { "type": "boolean" },
     "automation": {
