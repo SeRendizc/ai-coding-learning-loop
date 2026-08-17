@@ -160,7 +160,7 @@ export class LearningSession {
       actor: 'user',
       work_unit_id: submitted.work_unit_id,
       refs: [submitted.payload.plan_ref],
-      payload: { decision, plan_ref: submitted.payload.plan_ref, review_source: reviewSource },
+      payload: { decision, plan_ref: submitted.payload.plan_ref },
     })
   }
 
