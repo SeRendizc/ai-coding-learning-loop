@@ -11,18 +11,15 @@ contracts, event ledger, reducer, reports, presets, and Skill are host-neutral.
 
 ## Use it
 
-Install the checkout as an out-of-tree DeepSeek Harness bundle:
+Install the source preview into DeepSeek Harness's built-in Web profile once:
 
 ```bash
-git clone https://github.com/SeRendizc/ai-coding-learning-loop.git
-cd ai-coding-learning-loop
-npm test
-dsh plugin --profile learning add "$PWD"
-dsh --profile learning --dump-config
-dsh --profile learning
+npx @deepseek-ai/dsh plugin --profile web add github:SeRendizc/ai-coding-learning-loop#25c9e75d18a925938a7f8bd737b1caab46295cc3
+npx @deepseek-ai/dsh web
 ```
 
-Run `/ownership start`, select a mode and one concrete learning target, then
+No Harness checkout or workspace build is required for users. Open
+`http://127.0.0.1:3080`, run `/ownership start`, select a mode and one concrete learning target, then
 review the complete Learning Contract before accepting it. `/ownership status`
 shows the current dual state; `/ownership report` produces an evidence-backed
 knowledge report. Cancellation before acceptance persists no contract.
@@ -80,10 +77,11 @@ more or worked faster.
 ## Development and compatibility
 
 ```bash
-npm run check
-npm run verify:harness -- ../deepseek-harness-upstream
-npm pack --dry-run
+npm run test:local
 ```
+
+This maintainer-only command automates repository regression, the pinned
+Harness checkout and install, live provider-free smoke, and package inspection.
 
 The locked target is DeepSeek Harness `0.1.0-rc.5` at commit
 `47f943859bef60e4160492346772ded9b24f765a`. The adapter uses the published

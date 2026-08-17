@@ -1,127 +1,83 @@
-# Local testing
+# Local testing (maintainers only)
 
-Use three layers. Layers 1 and 2 require no model API key. Layer 3 is an
-optional interactive check and uses whatever Provider the local Harness
-profile is already configured to use.
+Ordinary users should follow [Install and remove](install.md). They do not need
+a DeepSeek Harness source checkout or any of the commands on this page.
 
-## Prerequisites
+## Full local acceptance: one command
 
-- Git;
-- Node.js `24.x` (or `22.19+`);
-- Corepack with pnpm `11.7.0` for the pinned Harness workspace.
+Prerequisites are Git, Node.js `24.x` (or `22.19+`), Corepack, and network
+access on the first run. From this repository run:
 
-Keep the plugin and Harness as sibling directories:
-
-```text
-workspace/
-├── ai-coding-learning-loop/
-└── deepseek-harness/
+```bash
+npm run test:local
 ```
 
-## Layer 1: repository regression
+That command performs the complete local acceptance:
 
-From `ai-coding-learning-loop`:
+1. runs the repository tests and reproduces the evaluation artifacts;
+2. checks both Harness smoke scripts for syntax;
+3. clones the exact supported Harness commit into `.local-test/` when absent;
+4. installs its locked pnpm workspace through Corepack;
+5. installs this checkout through the official `web` profile command;
+6. dumps and checks the composed profile;
+7. exercises real Cordis, System Prompt, Tools, Commands, User Questions, and
+   Skills services, including one real Tool execution and ledger recovery;
+8. verifies `result: PASS` and `provider_call_performed: false`;
+9. performs `npm pack --dry-run` to check the release contents.
+
+The supported Harness revision is
+`47f943859bef60e4160492346772ded9b24f765a`; the orchestrator rejects a different
+revision instead of silently testing moving upstream code.
+
+The first run is intentionally slower because it fetches and installs the
+pinned Harness workspace. Later runs reuse `.local-test/deepseek-harness` and
+the package-manager cache. Windows, PowerShell, cmd, Bash, and WSL use the same
+npm command; the Node orchestrator handles paths and child processes.
+
+Generated evidence is written under `.local-test/`:
+
+- `composed-config.yml` — the effective `web` profile;
+- `harness-live-report.json` — the provider-free acceptance report;
+- `evidence/` — disposable smoke evidence;
+- `dsh-home/` — the isolated local Harness profile.
+
+## Faster checks while editing
+
+For a quick provider-free repository regression without cloning or booting the
+Harness source tree:
 
 ```bash
 npm run check:local
-npm run verify:harness -- ../deepseek-harness
-npm pack --dry-run
 ```
 
-Expected results:
-
-- all Node tests pass;
-- the evaluation artifacts reproduce byte-for-byte;
-- the pinned Harness version, commit, package shape, and adapter seams match;
-- the package dry-run contains no local evidence, profile, credential, or
-  dependency directories.
-
-`verify:harness` is a source-contract check. It does not boot Harness, so run
-Layer 2 before claiming live compatibility.
-
-## Layer 2: isolated pinned-Harness smoke
-
-First prepare the exact supported upstream checkout:
+To verify a particular existing Harness checkout explicitly:
 
 ```bash
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-git checkout 47f943859bef60e4160492346772ded9b24f765a
-corepack enable
-corepack prepare pnpm@11.7.0 --activate
-pnpm install --frozen-lockfile
+npm run verify:harness -- /path/to/deepseek-harness
 ```
 
-### Bash / WSL
+The path after `--` is honored on every platform. This source-contract check
+does not replace the full `npm run test:local` acceptance.
 
-Run from the `deepseek-harness` directory:
+## Optional interactive journey
+
+After full acceptance passes, use the ordinary user path:
 
 ```bash
-export PLUGIN_ROOT="$(cd ../ai-coding-learning-loop && pwd)"
-export DSH_HOME="$PLUGIN_ROOT/.local-test/dsh-home"
-
-pnpm dsh plugin --profile learning add "$PLUGIN_ROOT"
-pnpm dsh --profile learning --dump-config \
-  > "$PLUGIN_ROOT/.local-test/composed-config.yml"
-
-node --import tsx/esm \
-  "$PLUGIN_ROOT/scripts/live-harness-smoke.mjs" \
-  "$PWD" \
-  "$PLUGIN_ROOT/.local-test/evidence" \
-  "$PLUGIN_ROOT/.local-test/harness-live-report.json"
+npx @deepseek-ai/dsh web
 ```
 
-### PowerShell
+Run `/ownership start`, accept a Learning Contract, inspect the separate
+engineering and learning states with `/ownership status`, complete a
+Deliver/Gate cycle, and inspect `/ownership report`. This may call the Provider
+configured in Harness; the automated acceptance above never does.
 
-Run from the `deepseek-harness` directory:
-
-```powershell
-$PluginRoot = (Resolve-Path ..\ai-coding-learning-loop).Path
-$env:DSH_HOME = Join-Path $PluginRoot ".local-test\dsh-home"
-
-pnpm dsh plugin --profile learning add $PluginRoot
-New-Item -ItemType Directory -Force (Join-Path $PluginRoot ".local-test") | Out-Null
-pnpm dsh --profile learning --dump-config |
-  Set-Content -Encoding utf8 (Join-Path $PluginRoot ".local-test\composed-config.yml")
-
-node --import tsx/esm `
-  (Join-Path $PluginRoot "scripts\live-harness-smoke.mjs") `
-  $PWD.Path `
-  (Join-Path $PluginRoot ".local-test\evidence") `
-  (Join-Path $PluginRoot ".local-test\harness-live-report.json")
-```
-
-The report must say `result: PASS` and `provider_call_performed: false`. This
-smoke verifies the real Cordis, System Prompt, Tools, Commands, User Questions,
-and Skills services; observes one real Tool execution; restores the accepted
-contract through a fresh ledger; and verifies Fiber-owned cleanup.
-
-## Layer 3: optional interactive user journey
-
-This layer is the user-facing test. It is separate because it may call the
-Provider configured in the isolated `learning` profile.
-
-```bash
-pnpm dsh --profile learning
-```
-
-Inside Harness:
-
-1. run `/ownership start`;
-2. choose a delegation mode and a concrete learning target;
-3. inspect and accept the Learning Contract;
-4. run `/ownership status` and confirm engineering and learning states are
-   shown separately;
-5. after a Deliver/Gate cycle, run `/ownership report`;
-6. restart Harness with the same `DSH_HOME` and confirm the accepted contract
-   and learning evidence are still readable.
-
-Do not commit Provider keys or `.local-test/`. A Layer 2 PASS proves host
-compatibility, not real learning effectiveness; that still requires an actual
-user study.
+Do not commit Provider keys or `.local-test/`. A local PASS proves host
+compatibility, not real learning effectiveness; that requires an actual user
+study.
 
 ## Cleanup
 
-`.local-test/` is disposable because this guide puts only isolated test data
-there. Do not delete `.ai-coding-learning-loop/` from a real project unless its
-audit history is intentionally no longer needed.
+`.local-test/` is disposable because the orchestrator puts only isolated test
+data there. Do not delete `.ai-coding-learning-loop/` from a real project unless
+its audit history is intentionally no longer needed.

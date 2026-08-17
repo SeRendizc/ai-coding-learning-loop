@@ -52,8 +52,11 @@
     "demo": "node examples/run-comparison.mjs",
     "verify:evaluation": "node scripts/verify-evaluation.mjs",
     "verify:harness-live:syntax": "node --check scripts/live-harness-smoke.mjs",
-    "verify:harness": "node scripts/verify-harness.mjs ../deepseek-harness-upstream",
-    "check:local": "npm run check && npm run verify:harness-live:syntax",
+    "verify:harness-local:syntax": "node --check scripts/local-harness-acceptance.mjs",
+    "verify:harness": "node scripts/verify-harness.mjs",
+    "check:local": "npm run check && npm run verify:harness-live:syntax && npm run verify:harness-local:syntax",
+    "test:harness:local": "node scripts/local-harness-acceptance.mjs",
+    "test:local": "npm run check:local && npm run test:harness:local && npm pack --dry-run",
     "check": "npm test && npm run verify:evaluation"
   }
 }
