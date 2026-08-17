@@ -16,4 +16,9 @@ Choose `AI_LED`. The AI writes most code, but the learner predicts behavior, rev
 
 Choose `DELEGATED`. The AI implements and verifies everything, then performs a complete teaching Deliver. The learner must still explain, predict, and apply. Reports warn that implementation-detail familiarity may remain weaker.
 
-In every journey, `/ownership start` creates a contract only after explicit confirmation. `/ownership status` displays derived state, and `/ownership report` displays separate engineering and learning outcomes.
+In every journey, `/ownership start` creates a contract only after explicit
+confirmation. Continue the coding request in that same session: the Skill uses
+the internal lifecycle tool to persist Brief, Build, Verify, Deliver, and Gate
+actions. The user answers Gate questions directly. `/ownership status`
+displays derived state, and `/ownership report` displays separate engineering
+and learning outcomes.

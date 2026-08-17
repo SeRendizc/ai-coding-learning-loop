@@ -8,4 +8,5 @@
 - Tool observations are diagnostic and in-memory; learning facts are the durable domain events.
 - Headless environments cannot collect interactive Learning Contracts or Gates without another verified human-input provider.
 - The comparison fixtures demonstrate deterministic protocol behavior, not measured human learning outcomes.
-- npm publication, external-user validation, and a live Harness end-to-end compatibility run remain release activities.
+- The lifecycle Tool is verified through the real Harness registry without a Provider call. A Provider-backed interactive user journey remains a release activity.
+- npm publication and external-user validation remain release activities.

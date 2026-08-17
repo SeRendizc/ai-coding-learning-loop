@@ -10,10 +10,11 @@
 - [x] Reproducible three-task protocol comparison
 - [x] Package dry-run contains only intended public assets
 - [x] Pinned Harness live workflow succeeds and its artifact is reviewed
+- [x] Real Harness Tool registry drives a durable lifecycle through Deliver and Gate
 
 ## External evidence required before a stable release
 
-- [ ] Boot the pinned upstream Harness workspace and record a live interactive run
+- [ ] Record a pinned Provider-backed interactive user run through `/ownership start`
 - [ ] Verify native, MCP, Code Mode, approval, cancellation, and restart paths
 - [ ] Collect feedback from at least one user other than the author
 - [ ] Publish an npm prerelease from an explicitly authorized maintainer account

@@ -53,6 +53,8 @@ test('pinned Harness live acceptance is reproducible and provider-free', async (
   assert.match(workflow, /plugin --profile learning add/)
   assert.match(script, /provider_call_performed: false/)
   assert.match(script, /packages\/core\/system-prompt\/src\/index\.ts/)
+  assert.match(script, /name: 'ownership_lifecycle'/)
+  assert.match(script, /durable_lifecycle_closed: true/)
   assert.equal(schema.properties.provider_call_performed.type, 'boolean')
 
   const report = await json('evaluation/harness-live-report.json')
@@ -77,6 +79,8 @@ test('local testing keeps disposable evidence and credentials out of Git', async
   assert.match(guide, /npm run test:local/)
   assert.match(guide, /maintainers only/i)
   assert.match(install, /plugin --profile web add github:/)
+  assert.match(install, /agent\/h0-harness-compatibility/)
+  assert.match(install, /ownership_lifecycle/)
   assert.doesNotMatch(install, /git clone https:\/\/github\.com\/deepseek-ai\/deepseek-harness/)
   assert.match(orchestrator, /--profile', 'web'/)
   assert.match(orchestrator, /provider_call_performed/)

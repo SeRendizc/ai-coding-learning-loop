@@ -14,8 +14,8 @@ contracts, event ledger, reducer, reports, presets, and Skill are host-neutral.
 Install the source preview into DeepSeek Harness's built-in Web profile once:
 
 ```bash
-npx @deepseek-ai/dsh plugin --profile web add github:SeRendizc/ai-coding-learning-loop#25c9e75d18a925938a7f8bd737b1caab46295cc3
-npx @deepseek-ai/dsh web
+npx -y @deepseek-ai/dsh@0.1.0-rc.5 plugin --profile web add github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility
+npx -y @deepseek-ai/dsh@0.1.0-rc.5 web
 ```
 
 No Harness checkout or workspace build is required for users. Open
@@ -23,6 +23,12 @@ No Harness checkout or workspace build is required for users. Open
 review the complete Learning Contract before accepting it. `/ownership status`
 shows the current dual state; `/ownership report` produces an evidence-backed
 knowledge report. Cancellation before acceptance persists no contract.
+
+After acceptance, the packaged Skill drives the teaching protocol and the
+session-scoped `ownership_lifecycle` tool records each validated transition.
+The learner does not call that internal tool manually. Gate answers are bound
+to the latest direct user message by SHA-256; the answer text is not copied
+into the sidecar evidence.
 
 | Mode | AI implementation | Learner responsibility | Required Gate |
 |---|---|---|---|
@@ -97,7 +103,8 @@ Read [installation](docs/install.md), [compatibility](docs/compatibility.md),
 [release checklist](docs/release-checklist.md). 中文说明见
 [docs/README.zh-CN.md](docs/README.zh-CN.md).
 
-This package is an alpha candidate. npm publication, a pinned live Harness
-Provider-backed interactive run, outside-user feedback, and a community
-release post remain explicit external release gates. The provider-free pinned
-Harness service/recovery smoke is already verified.
+This package is an alpha candidate. The branch install above is a mutable source
+preview and will be replaced by a version tag or npm prerelease. A pinned live
+Harness Provider-backed interactive run, outside-user feedback, and a community
+release post remain explicit external release gates. Provider-free Harness
+service, lifecycle-tool, recovery, and package smokes are automated.
