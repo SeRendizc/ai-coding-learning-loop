@@ -54,4 +54,10 @@ test('pinned Harness live acceptance is reproducible and provider-free', async (
   assert.match(script, /provider_call_performed: false/)
   assert.match(script, /packages\/core\/system-prompt\/src\/index\.ts/)
   assert.equal(schema.properties.provider_call_performed.type, 'boolean')
+
+  const report = await json('evaluation/harness-live-report.json')
+  assert.equal(report.result, 'PASS')
+  assert.equal(report.upstream.commit, '47f943859bef60e4160492346772ded9b24f765a')
+  assert.equal(report.provider_call_performed, false)
+  assert.match(report.artifact.digest, /^sha256:[a-f0-9]{64}$/)
 })

@@ -28,6 +28,17 @@
         "run_id": { "type": "integer", "minimum": 1 },
         "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
       }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["id", "name", "digest", "head_sha", "workflow_run_url"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "const": "s4-harness-live-evidence" },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "head_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "workflow_run_url": { "type": "string", "format": "uri" }
+      }
     }
   }
 }
