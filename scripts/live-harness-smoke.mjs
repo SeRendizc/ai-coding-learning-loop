@@ -117,5 +117,4 @@ const report = {
 }
 await mkdir(resolve(reportPath, '..'), { recursive: true })
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-await ctx.dispose()
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
