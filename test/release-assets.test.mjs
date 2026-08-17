@@ -18,7 +18,7 @@ test('four public presets express distinct ownership modes', async () => {
 })
 
 test('public skill has a valid minimal frontmatter contract', async () => {
-  const skill = await text('skills/ai-coding-learning-loop/SKILL.md')
+  const skill = (await text('skills/ai-coding-learning-loop/SKILL.md')).replace(/\r\n?/gu, '\n')
   assert.match(skill, /^---\nname: ai-coding-learning-loop\ndescription: .+\n---\n/)
   assert.match(skill, /Deliver completely/)
   assert.match(skill, /Gate transfer/)

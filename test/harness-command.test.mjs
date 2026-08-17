@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { apply, Config, getOwnershipController } from '../index.js'
+import { apply, Config, getOwnershipController, parseBundledSkill } from '../index.js'
 
 class CommandContext {
   constructor(answers) {
@@ -31,6 +31,11 @@ class CommandContext {
     if (dependencies.every(dependency => this[dependency])) callback(this)
   }
 }
+
+test('bundled Skill parser accepts Windows CRLF line endings', () => {
+  const source = '---\r\nname: demo\r\ndescription: demo\r\n---\r\n\r\n# Body\r\n'
+  assert.equal(parseBundledSkill(source), '# Body\n')
+})
 
 test('Harness bundle registers the learning Skill with its resource directory', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))

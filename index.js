@@ -222,16 +222,21 @@ function installCommands(ctx, session) {
   })
 }
 
+export function parseBundledSkill(source) {
+  const normalized = source.replace(/\r\n?/gu, '\n')
+  const match = /^---\n[\s\S]*?\n---\n\n([\s\S]*)$/u.exec(normalized)
+  if (!match) throw new Error('bundled AI Coding Learning Loop Skill is malformed')
+  return match[1]
+}
+
 function installBundledSkill(ctx) {
   if (typeof ctx.inject !== 'function') return
   ctx.inject(['skills'], skillCtx => {
     const source = readFileSync(BUNDLED_SKILL_PATH, 'utf8')
-    const match = /^---\n[\s\S]*?\n---\n\n([\s\S]*)$/u.exec(source)
-    if (!match) throw new Error('bundled AI Coding Learning Loop Skill is malformed')
     skillCtx.skills.register({
       name: 'ai-coding-learning-loop',
       description: 'Preserve transferable understanding while AI plans, implements, verifies, and teaches coding work.',
-      content: match[1],
+      content: parseBundledSkill(source),
       source: 'runtime',
       invocation: { modelInvocable: true, userInvocable: true },
       path: BUNDLED_SKILL_PATH,
