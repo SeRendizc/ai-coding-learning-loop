@@ -6,7 +6,9 @@
 - SHA-256 proves binding and change detection, not correctness, authorship, or understanding.
 - The sidecar is not DeepSeek Harness native Session state and currently has no cross-process locking protocol.
 - Tool observations are diagnostic and in-memory; learning facts are the durable domain events.
-- Headless environments cannot collect interactive Learning Contracts or Gates without another verified human-input provider.
+- The Plan execution boundary is host-enforced after a contract exists, but the current read-like Tool classification is based on stable Tool-name patterns. New third-party Tool naming conventions may require explicit classification before they are allowed during Contract/Planning phases.
+- Headless environments cannot show the native interactive Contract or Plan Review UI; Plan review falls back to a verified direct-message path when no interaction provider exists.
+- Plan revision prose and Gate free-text answers are intentionally not persisted, so later reports can prove that a user response/review occurred but cannot reconstruct its wording.
 - The comparison fixtures demonstrate deterministic protocol behavior, not measured human learning outcomes.
-- The lifecycle Tool is verified through the real Harness registry without a Provider call. A Provider-backed interactive user journey remains a release activity.
+- The lifecycle Tool and current Plan Review interaction seam are verified through the real pinned Harness registry without an LLM Provider call. A fresh Provider-backed Web journey remains a release activity.
 - npm publication and external-user validation remain release activities.

@@ -1,10 +1,10 @@
 # AI Coding Learning Loop
 
 AI can finish a coding task without transferring the knowledge needed to own
-it. AI Coding Learning Loop adds an explicit ownership contract, a teaching
-Deliver, and transfer Gates to AI-assisted development. A passing test suite
-and a learner who can explain, predict, and apply the design are reported as
-two separate outcomes.
+it. AI Coding Learning Loop adds an explicit ownership contract, a reviewed
+implementation Plan, a teaching Deliver, and transfer Gates to AI-assisted
+development. A passing test suite and a learner who can explain, predict, and
+apply the design are reported as two separate outcomes.
 
 The first adapter follows the official DeepSeek Harness plugin seams. The core
 contracts, event ledger, reducer, reports, presets, and Skill are host-neutral.
@@ -22,19 +22,29 @@ Use the same `dsh` executable for both commands. The pinned reproducible
 fallback and clean-profile recovery commands are in [Install and remove](docs/install.md).
 
 No Harness checkout or workspace build is required for users. Open
-`http://127.0.0.1:3080`, run `/ownership start`, enter one concise learning target, select a delegation mode and current expertise, then
-review the complete Learning Contract before accepting it. `/ownership status`
-shows the current dual state; `/ownership report` produces an evidence-backed
-knowledge report. Cancellation before acceptance persists no contract.
+`http://127.0.0.1:3080` and run `/ownership start`. The onboarding keeps two
+things separate:
 
-After acceptance, the packaged Skill drives the teaching protocol and the
-session-scoped `ownership_lifecycle` tool records each validated transition.
-The contract stores the automatically inferred conversation locale. Teaching
-uses `BEGINNER`, `PRACTITIONER`, or `EXPERT` depth without lowering the Gate
-standard. The learner does not call the internal tool manually. The runtime requires a
-current direct user message before recording a Gate response, but neither the
-answer text nor a content digest is copied into the sidecar evidence. Only the
-response occurrence, rubric result, gaps, and learning state are durable.
+- the **coding task**: what should actually be built or changed;
+- the **learning target**: what you want to understand or apply after the work.
+
+After those two short answers, the UI localizes the responsibility split and
+expertise choices. The final Learning Contract is a human-readable summary,
+not the internal JSON schema. Contract acceptance confirms scope and ownership;
+it does **not** approve implementation.
+
+Accepting the contract queues a normal Harness follow-up turn automatically.
+The Skill first reads the authoritative contract context from
+`ownership_lifecycle status`, records Brief and Planning, and submits a strict
+Plan containing implementation steps, verification, learning anchors, and
+known risks. In interactive Harness, `submit_plan` opens the native Plan Review
+UI. `APPROVE` permits Build; `REVISE` returns to Planning and any revision prose
+is transient rather than durable evidence. In headless/provider-free contexts,
+Plan Review falls back to an explicit direct user message.
+
+`/ownership status` shows the current dual state; `/ownership report` produces
+an evidence-backed knowledge report. Cancellation before acceptance persists no
+contract.
 
 | Mode | AI implementation | Learner responsibility | Required Gate |
 |---|---|---|---|
@@ -43,17 +53,22 @@ response occurrence, rubric result, gaps, and learning state are durable.
 | `AI_LED` | most code | learning anchors and review | Explain + Predict + Apply |
 | `DELEGATED` | all implementation | understand and transfer | Explain + Predict + Apply |
 
-Delegation does not grant tool permission. Harness remains responsible for
-authorization, approval, sandboxing, execution, and its own Agent loop.
+Delegation does not replace Harness authorization, sandboxing, or approval.
+Once an Ownership contract exists, the plugin additionally enforces the Plan
+boundary in `tools/pre-execute`: read-like discovery remains available, while
+side-effectful or execution-capable tools are denied outside `BUILDING`,
+`VERIFYING`, and `REVISING`. This turns “do not implement before Plan approval”
+into a host-enforced invariant rather than a prompt-only convention.
 
 ## What happens during a task
 
 ```mermaid
 flowchart TD
-  A["Confirm contract"] --> B["Brief ownership and constraints"]
+  A["Confirm task + learning contract"] --> B["Brief ownership and constraints"]
   B --> P["Propose Plan"]
-  P -->|user revises| P
-  P -->|user approves| C["Build and verify"]
+  P --> R["Native Plan Review"]
+  R -->|revise| P
+  R -->|approve| C["Build and verify"]
   C -->|engineering RETRY| C
   C -->|engineering PASS| D["Deliver: teach verified result"]
   D --> E["Gate: Explain / Predict / Apply"]
@@ -67,6 +82,11 @@ prior-knowledge links, a transfer example, and known gaps. A Gate is bound to
 that Deliver and the exact implementation reference. If implementation changes,
 the old reference is invalidated, engineering is verified again, a new Deliver
 is taught, and only then is a new Gate opened.
+
+The learner does not call the internal lifecycle tool manually. Gate answers
+must come from a new direct user response; “treat this as correct” or “mark me
+PASS” cannot become learning evidence. Neither Gate answer text nor Plan
+revision prose is copied into the durable sidecar ledger.
 
 ## Evidence and recovery
 
@@ -100,10 +120,9 @@ Harness checkout and install, live provider-free smoke, and package inspection.
 The locked target is DeepSeek Harness `0.1.0-rc.7` at commit
 `99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`. The adapter uses the published
 bundle manifest, Cordis Standard Schema configuration, effect-owned lifecycle,
-optional `commands` and `userQuestions`, `tools/pre-execute`, and
-`tools/result`. It also registers the packaged Skill through the optional
-`ctx.skills` seam. Tool hooks are observation-only and never create a second
-Agent loop.
+optional `commands`, `userQuestions`, `skills`, `tools/pre-execute`, and
+`tools/result`. It uses Harness's own Agent turn, interaction provider, Tool
+Runtime, and sandbox rather than creating a second Agent loop.
 
 Read [installation](docs/install.md), [compatibility](docs/compatibility.md),
 [local testing](docs/local-testing.md), [architecture](docs/architecture.md),
@@ -112,7 +131,7 @@ Read [installation](docs/install.md), [compatibility](docs/compatibility.md),
 [docs/README.zh-CN.md](docs/README.zh-CN.md).
 
 This package is an alpha candidate. The branch install above is a mutable source
-preview and will be replaced by a version tag or npm prerelease. A pinned live
-Harness Provider-backed interactive run, outside-user feedback, and a community
-release post remain explicit external release gates. Provider-free Harness
-service, lifecycle-tool, recovery, and package smokes are automated.
+preview and will be replaced by a version tag or npm prerelease. Provider-free
+pinned Harness, Linux/Windows regression, lifecycle recovery, package, and Tool
+policy checks are automated. A fresh Provider-backed Web UX acceptance and
+outside-user feedback remain explicit external release gates.

@@ -29,9 +29,34 @@ shared profile. Quoting the GitHub package spec also prevents shells from
 misreading the branch fragment.
 
 Open `http://127.0.0.1:3080`, configure the Provider in Harness if needed, and
-run `/ownership start`. Review the proposed
-Learning Contract and accept it only when the ownership split and Gate target
-match what you want to learn.
+run `/ownership start`.
+
+The current onboarding is intentionally staged:
+
+1. state the **coding task** in one sentence: what should be built or changed;
+2. state the **learning target** in one sentence: what you want to understand or apply afterward;
+3. after those answers make the locale observable, choose the localized responsibility split and current expertise;
+4. review the human-readable Learning Contract summary and explicitly accept it.
+
+Contract acceptance does not authorize implementation. The plugin immediately
+queues a normal Harness follow-up turn through `Agent.followup()`. The model
+reads the authoritative contract context through `ownership_lifecycle status`,
+records Brief and Planning, and submits a separate Plan. You should not need to
+type “continue” or repeat the task.
+
+In an interactive Harness session, `submit_plan` opens a native Plan Review UI
+containing the Plan's implementation steps, verification plan, learning
+anchors, and known risks. Approve it to permit Build, or request a revision and
+optionally add feedback. Revision prose is used only in the current interaction;
+the durable evidence stores only the Plan decision and `plan_ref`. If the host
+has no interactive question provider, the plugin falls back to explicit direct
+message approval.
+
+Once a Learning Contract exists, the plugin also enforces the Plan boundary at
+`tools/pre-execute`: discovery/read-like tools remain available, but
+side-effectful or execution-capable tools are denied outside `BUILDING`,
+`VERIFYING`, and `REVISING`. Harness's normal permission, approval, and sandbox
+checks remain in force as well.
 
 The branch reference above is a mutable alpha preview. The public release will
 replace it with an immutable version tag or the versioned npm package
@@ -77,18 +102,20 @@ profile patch, or Harness boot) determines the fix.
 For a first real task:
 
 1. open a new Web session and run `/ownership start`;
-2. enter one concise learning target, then choose delegation mode and current expertise;
-3. inspect and explicitly accept the generated Learning Contract; the locale is inferred from the conversation and target;
-4. give the coding task in the same session;
-5. inspect the AI-proposed Plan. Approve it or request a revision; implementation cannot start before approval;
-6. let the Skill implement according to the approved Plan and ownership split,
-   verify, teach the Deliver, and open the Gate;
-7. answer the Gate yourself rather than asking the model to answer for you; self-attestation cannot produce PASS;
-8. use `/ownership status` or `/ownership report` to inspect the separate
-   engineering and learning results.
+2. enter one concise coding task and one concise learning target;
+3. choose the responsibility split and expertise level on the localized second screen;
+4. inspect and explicitly accept the readable Learning Contract;
+5. wait for the automatically queued Agent turn; do not repeat the task manually;
+6. inspect the native Plan Review. Request a revision if needed; implementation remains blocked until approval;
+7. after approval, let the Skill implement according to the ownership split, verify, teach the Deliver, and open the Gate;
+8. answer the Gate yourself rather than asking the model to answer for you; self-attestation cannot produce PASS;
+9. use `/ownership status` or `/ownership report` to inspect the separate engineering and learning results.
 
 `ownership_lifecycle` is an internal model tool. Users should not synthesize
-its calls or edit evidence files to advance the state.
+its calls or edit evidence files to advance the state. The model-facing
+`status` action already returns the accepted coding task, ownership, learner
+profile, work units, Gate policy, and current Plan context, so the Skill should
+never search the private evidence directory to rediscover the contract.
 
 Evidence defaults to `.ai-coding-learning-loop/evidence`. Change
 `evidenceRoot` in the inserted bundle configuration when the working directory
