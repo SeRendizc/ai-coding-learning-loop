@@ -41,6 +41,17 @@ export class LearningSession {
     return projectTask(taskId, events)
   }
 
+  async context(taskId) {
+    const { contract, events, state } = await this.#contractAndState(taskId)
+    const submitted = latest(events, 'plan.submitted')
+    return Object.freeze({
+      contract: Object.freeze(structuredClone(contract)),
+      state: freezeRecoveredState(structuredClone(state)),
+      latest_plan: submitted?.payload?.plan ? Object.freeze(structuredClone(submitted.payload.plan)) : null,
+      latest_plan_ref: submitted?.payload?.plan_ref ?? null,
+    })
+  }
+
   async acceptContract(contract) {
     const accepted = acceptLearningContract(contract)
     const existing = await this.ledger.read(accepted.task_id)
@@ -128,15 +139,18 @@ export class LearningSession {
     })
   }
 
-  async recordPlanReview(taskId, decision, currentUserMessageCount = null) {
+  async recordPlanReview(taskId, decision, currentUserMessageCount = null, reviewSource = 'direct-message') {
     if (!['APPROVE', 'REVISE'].includes(decision)) {
       throw new TypeError('Plan review decision must be APPROVE or REVISE')
+    }
+    if (!['direct-message', 'user-question'].includes(reviewSource)) {
+      throw new TypeError('Plan review source must be direct-message or user-question')
     }
     const { events, state } = await this.#contractAndState(taskId)
     if (state.phase !== 'AWAITING_PLAN_REVIEW') throw new Error('Plan review is not currently expected')
     const submitted = latest(events, 'plan.submitted')
     const boundary = submitted?.payload?.user_message_count_at_submit
-    if (boundary !== undefined
+    if (reviewSource === 'direct-message' && boundary !== undefined
       && (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount <= boundary)) {
       throw new Error('Plan review requires a new direct user message after the Plan')
     }
@@ -146,7 +160,7 @@ export class LearningSession {
       actor: 'user',
       work_unit_id: submitted.work_unit_id,
       refs: [submitted.payload.plan_ref],
-      payload: { decision, plan_ref: submitted.payload.plan_ref },
+      payload: { decision, plan_ref: submitted.payload.plan_ref, review_source: reviewSource },
     })
   }
 

@@ -27,6 +27,8 @@ export interface PlanRecord {
 export interface LearningContract {
   schema_version: 'ai-coding-learning-loop.learning-contract.v1'
   task_id: string
+  /** Explicit coding task; optional only for backwards-compatible recovered v1 evidence. */
+  engineering_task?: string
   goal: string
   mode: DelegationMode
   learner_profile?: { expertise: LearnerExpertise; locale: 'zh-CN' | 'en' }

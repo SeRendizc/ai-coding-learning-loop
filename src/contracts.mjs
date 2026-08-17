@@ -85,6 +85,10 @@ export function validateLearningContract(contract) {
   if (contract?.schema_version !== 'ai-coding-learning-loop.learning-contract.v1') {
     errors.push('schema_version must be ai-coding-learning-loop.learning-contract.v1')
   }
+  if (contract?.engineering_task !== undefined
+    && (typeof contract.engineering_task !== 'string' || contract.engineering_task.trim().length === 0)) {
+    errors.push('engineering_task must be a non-empty string when present')
+  }
   if (!DELEGATION_MODES.includes(contract?.mode)) {
     errors.push('mode must be a supported delegation mode')
   }
