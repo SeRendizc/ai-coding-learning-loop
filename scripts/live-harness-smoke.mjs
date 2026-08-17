@@ -53,7 +53,7 @@ const toolResult = await ctx.tools.execute({
 if (toolResult.isError || toolResult.value !== 'probe-ok') throw new Error('real Harness tool execution failed')
 const probe = plugin.getProbeSnapshot(ctx)
 if (probe.totalObserved !== 2 || probe.entries.map(entry => entry.phase).join(',') !== 'pre-execute,result') {
-  throw new Error('plugin did not observe the real Harness pre-execute/result lifecycle')
+  throw new Error(`plugin did not observe the real Harness pre-execute/result lifecycle: ${JSON.stringify(probe)}`)
 }
 
 const controller = required(plugin.getOwnershipController(ctx), 'learning controller was not mounted')
