@@ -1,10 +1,10 @@
 # AI Coding Learning Loop
 
 AI can finish a coding task without transferring the knowledge needed to own
-it. AI Coding Learning Loop adds an explicit ownership contract, a reviewed
-implementation Plan, a teaching Deliver, and transfer Gates to AI-assisted
-development. A passing test suite and a learner who can explain, predict, and
-apply the design are reported as two separate outcomes.
+it. AI Coding Learning Loop adds an explicit learning/ownership contract, a
+reviewed implementation Plan, a teaching Deliver, and transfer Gates to
+AI-assisted development. A passing test suite and a learner who can explain,
+predict, and apply the design are reported as two separate outcomes.
 
 The first adapter follows the official DeepSeek Harness plugin seams. The core
 contracts, event ledger, reducer, reports, presets, and Skill are host-neutral.
@@ -22,29 +22,43 @@ Use the same `dsh` executable for both commands. The pinned reproducible
 fallback and clean-profile recovery commands are in [Install and remove](docs/install.md).
 
 No Harness checkout or workspace build is required for users. Open
-`http://127.0.0.1:3080` and run `/ownership start`. The onboarding keeps two
-things separate:
+`http://127.0.0.1:3080` and run `/ownership start`.
 
-- the **coding task**: what should actually be built or changed;
-- the **learning target**: what you want to understand or apply after the work.
+The onboarding deliberately asks only information that changes the learning
+contract:
 
-After those two short answers, the UI localizes the responsibility split and
-expertise choices. The final Learning Contract is a human-readable summary,
-not the internal JSON schema. Contract acceptance confirms scope and ownership;
-it does **not** approve implementation.
+1. one free-text **learning target**;
+2. a **responsibility split** from human implementation to full AI delegation;
+3. the learner's current **expertise**.
 
-Accepting the contract queues a normal Harness follow-up turn automatically.
-The Skill first reads the authoritative contract context from
-`ownership_lifecycle status`, records Brief and Planning, and submits a strict
-Plan containing implementation steps, verification, learning anchors, and
-known risks. In interactive Harness, `submit_plan` opens the native Plan Review
-UI. `APPROVE` permits Build; `REVISE` returns to Planning and any revision prose
-is transient rather than durable evidence. In headless/provider-free contexts,
-Plan Review falls back to an explicit direct user message.
+The Learning Contract confirms those learning and ownership choices. It does
+**not** force the user to invent a coding task before the AI has inspected the
+conversation and workspace, and it does not approve implementation.
+
+After contract acceptance, the plugin queues a normal Harness follow-up turn.
+The Skill reads the authoritative contract, inspects available context with
+read-only tools, and proposes a concrete `engineering_task` inside the Plan. If
+the user already made a concrete coding request earlier in the conversation,
+the Plan preserves that request rather than inventing a replacement. Otherwise
+the AI proposes a bounded task aligned with the learning target and workspace.
+
+The Plan Review therefore approves both **what will be built** and **how it will
+be built**. A current Harness Plan contains:
+
+- concrete coding task;
+- implementation steps;
+- verification plan;
+- learning anchors;
+- known risks.
+
+In interactive Harness, `submit_plan` opens the native Plan Review UI.
+`APPROVE` makes the proposed scope authoritative and permits Build; `REVISE`
+returns to Planning. Revision prose is transient rather than durable evidence.
+In provider-free contexts, review falls back to a new direct user message.
 
 `/ownership status` shows the current dual state; `/ownership report` produces
-an evidence-backed knowledge report. Cancellation before acceptance persists no
-contract.
+an evidence-backed knowledge report. Cancellation before contract acceptance
+persists no contract.
 
 | Mode | AI implementation | Learner responsibility | Required Gate |
 |---|---|---|---|
@@ -57,15 +71,14 @@ Delegation does not replace Harness authorization, sandboxing, or approval.
 Once an Ownership contract exists, the plugin additionally enforces the Plan
 boundary in `tools/pre-execute`: read-like discovery remains available, while
 side-effectful or execution-capable tools are denied outside `BUILDING`,
-`VERIFYING`, and `REVISING`. This turns “do not implement before Plan approval”
-into a host-enforced invariant rather than a prompt-only convention.
+`VERIFYING`, and `REVISING`.
 
 ## What happens during a task
 
 ```mermaid
 flowchart TD
-  A["Confirm task + learning contract"] --> B["Brief ownership and constraints"]
-  B --> P["Propose Plan"]
+  A["Confirm learning + ownership contract"] --> B["Read-only planning brief"]
+  B --> P["Propose coding task + Plan"]
   P --> R["Native Plan Review"]
   R -->|revise| P
   R -->|approve| C["Build and verify"]
@@ -75,6 +88,11 @@ flowchart TD
   E -->|learning RETRY| D
   E -->|learning PASS| F["Close with dual-status report"]
 ```
+
+The planning Brief describes the learning target, ownership boundary, relevant
+workspace context, discovery constraints, and verification expectations. It
+does not pretend the coding scope is already approved. The proposed coding task
+becomes authoritative only after Plan Review.
 
 Deliver is the teaching phase, not a completion notice. It covers scope,
 reading order, data flow, rationale, invariants, failure paths, verification,
@@ -95,6 +113,11 @@ references, a redacted payload, payload digest, previous-event hash, and event
 hash. Snapshots and reports are derived views. Recovery accepts a snapshot only
 when it binds to a verified event prefix; otherwise it replays the original
 events.
+
+Existing pre-alpha Plan v1 evidence remains readable even when it predates the
+`engineering_task` field. This compatibility is recovery-only: the current
+Harness adapter requires every new submitted Plan to include a non-empty coding
+task, and the Plan Review exposes that task to the user.
 
 The default policy records queryable metadata and digests, not source code,
 complete tool inputs/results, secrets, or free-text learner answers. See

@@ -31,32 +31,18 @@ misreading the branch fragment.
 Open `http://127.0.0.1:3080`, configure the Provider in Harness if needed, and
 run `/ownership start`.
 
-The current onboarding is intentionally staged:
+The onboarding asks one free-text question—what you want to learn—then presents
+responsibility and expertise choices. Review the Learning Contract before
+accepting it. The Contract intentionally does not require you to invent a
+coding task first.
 
-1. state the **coding task** in one sentence: what should be built or changed;
-2. state the **learning target** in one sentence: what you want to understand or apply afterward;
-3. after those answers make the locale observable, choose the localized responsibility split and current expertise;
-4. review the human-readable Learning Contract summary and explicitly accept it.
-
-Contract acceptance does not authorize implementation. The plugin immediately
-queues a normal Harness follow-up turn through `Agent.followup()`. The model
-reads the authoritative contract context through `ownership_lifecycle status`,
-records Brief and Planning, and submits a separate Plan. You should not need to
-type “continue” or repeat the task.
-
-In an interactive Harness session, `submit_plan` opens a native Plan Review UI
-containing the Plan's implementation steps, verification plan, learning
-anchors, and known risks. Approve it to permit Build, or request a revision and
-optionally add feedback. Revision prose is used only in the current interaction;
-the durable evidence stores only the Plan decision and `plan_ref`. If the host
-has no interactive question provider, the plugin falls back to explicit direct
-message approval.
-
-Once a Learning Contract exists, the plugin also enforces the Plan boundary at
-`tools/pre-execute`: discovery/read-like tools remain available, but
-side-effectful or execution-capable tools are denied outside `BUILDING`,
-`VERIFYING`, and `REVISING`. Harness's normal permission, approval, and sandbox
-checks remain in force as well.
+After acceptance, a normal Harness follow-up turn is queued automatically. The
+AI reads the conversation and workspace with read-only tools and proposes the
+concrete coding task inside the Plan. An earlier direct coding request is
+preserved when one exists; otherwise the AI proposes a bounded task aligned to
+the learning target. Review that task together with implementation steps,
+verification, learning anchors, and risks in the native Plan Review UI. No
+implementation is allowed before approval.
 
 The branch reference above is a mutable alpha preview. The public release will
 replace it with an immutable version tag or the versioned npm package
@@ -94,28 +80,20 @@ dsh plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-
 dsh web
 ```
 
-If the isolated install succeeds, the plugin is sound and the original
-profile needs inspection rather than another reinstall. Keep the full command
-output when reporting a failure; the phase that failed (`pnpm`, package fetch,
-profile patch, or Harness boot) determines the fix.
-
 For a first real task:
 
 1. open a new Web session and run `/ownership start`;
-2. enter one concise coding task and one concise learning target;
-3. choose the responsibility split and expertise level on the localized second screen;
-4. inspect and explicitly accept the readable Learning Contract;
-5. wait for the automatically queued Agent turn; do not repeat the task manually;
-6. inspect the native Plan Review. Request a revision if needed; implementation remains blocked until approval;
-7. after approval, let the Skill implement according to the ownership split, verify, teach the Deliver, and open the Gate;
+2. enter one concise learning target;
+3. choose responsibility split and current expertise;
+4. inspect and explicitly accept the human-readable Learning Contract;
+5. let the automatic follow-up inspect conversation/workspace read-only and propose a concrete coding task inside the Plan;
+6. inspect the coding task, implementation steps, verification plan, learning anchors, and risks; approve them or request revision;
+7. only after Plan approval, let the Skill implement according to the selected ownership split, verify, teach the Deliver, and open the Gate;
 8. answer the Gate yourself rather than asking the model to answer for you; self-attestation cannot produce PASS;
-9. use `/ownership status` or `/ownership report` to inspect the separate engineering and learning results.
+9. use `/ownership status` or `/ownership report` to inspect separate engineering and learning results.
 
 `ownership_lifecycle` is an internal model tool. Users should not synthesize
-its calls or edit evidence files to advance the state. The model-facing
-`status` action already returns the accepted coding task, ownership, learner
-profile, work units, Gate policy, and current Plan context, so the Skill should
-never search the private evidence directory to rediscover the contract.
+its calls or edit evidence files to advance the state.
 
 Evidence defaults to `.ai-coding-learning-loop/evidence`. Change
 `evidenceRoot` in the inserted bundle configuration when the working directory
@@ -135,6 +113,10 @@ required.
 Until the first npm release, import the repository checkout through a local
 package reference. The public subpath exports are `contracts`, `core`,
 `evidence`, `session`, and `report`.
+
+The portable pre-alpha Plan v1 core can recover older Plan events without an
+`engineering_task`. That is recovery compatibility only: the current Harness
+adapter requires every new Plan submission to contain a concrete coding task.
 
 The CLI can initialize a task from a Learning Contract and inspect evidence
 without Harness. Keep disposable examples under `.local-test/`:
