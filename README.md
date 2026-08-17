@@ -22,14 +22,16 @@ Use the same `dsh` executable for both commands. The pinned reproducible
 fallback and clean-profile recovery commands are in [Install and remove](docs/install.md).
 
 No Harness checkout or workspace build is required for users. Open
-`http://127.0.0.1:3080`, run `/ownership start`, select a mode and one concrete learning target, then
+`http://127.0.0.1:3080`, run `/ownership start`, enter one concise learning target, select a delegation mode and current expertise, then
 review the complete Learning Contract before accepting it. `/ownership status`
 shows the current dual state; `/ownership report` produces an evidence-backed
 knowledge report. Cancellation before acceptance persists no contract.
 
 After acceptance, the packaged Skill drives the teaching protocol and the
 session-scoped `ownership_lifecycle` tool records each validated transition.
-The learner does not call that internal tool manually. The runtime requires a
+The contract stores the automatically inferred conversation locale. Teaching
+uses `BEGINNER`, `PRACTITIONER`, or `EXPERT` depth without lowering the Gate
+standard. The learner does not call the internal tool manually. The runtime requires a
 current direct user message before recording a Gate response, but neither the
 answer text nor a content digest is copied into the sidecar evidence. Only the
 response occurrence, rubric result, gaps, and learning state are durable.
@@ -49,8 +51,10 @@ authorization, approval, sandboxing, execution, and its own Agent loop.
 ```mermaid
 flowchart TD
   A["Confirm contract"] --> B["Brief ownership and constraints"]
-  B --> C["Build and verify"]
-  C -->|engineering RETRY| B
+  B --> P["Propose Plan"]
+  P -->|user revises| P
+  P -->|user approves| C["Build and verify"]
+  C -->|engineering RETRY| C
   C -->|engineering PASS| D["Deliver: teach verified result"]
   D --> E["Gate: Explain / Predict / Apply"]
   E -->|learning RETRY| D
@@ -93,8 +97,8 @@ npm run test:local
 This maintainer-only command automates repository regression, the pinned
 Harness checkout and install, live provider-free smoke, and package inspection.
 
-The locked target is DeepSeek Harness `0.1.0-rc.5` at commit
-`47f943859bef60e4160492346772ded9b24f765a`. The adapter uses the published
+The locked target is DeepSeek Harness `0.1.0-rc.7` at commit
+`99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`. The adapter uses the published
 bundle manifest, Cordis Standard Schema configuration, effect-owned lifecycle,
 optional `commands` and `userQuestions`, `tools/pre-execute`, and
 `tools/result`. It also registers the packaged Skill through the optional
