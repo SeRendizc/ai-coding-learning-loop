@@ -9,6 +9,7 @@
 - [x] Four delegation presets and public Skill package
 - [x] Reproducible three-task protocol comparison
 - [x] Package dry-run contains only intended public assets
+- [ ] Pinned Harness live workflow succeeds and its artifact is reviewed
 
 ## External evidence required before a stable release
 

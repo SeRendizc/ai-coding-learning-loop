@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SeRendizc/ai-coding-learning-loop/evaluation/harness-live-report.schema.json",
+  "title": "Pinned DeepSeek Harness live compatibility report",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "upstream", "result", "checks", "evidence_backend", "provider_call_performed"],
+  "properties": {
+    "schema_version": { "const": "ai-coding-learning-loop.harness-live.v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "upstream": {
+      "type": "object",
+      "required": ["package", "version", "commit"],
+      "properties": {
+        "package": { "const": "@deepseek-ai/dsh-root" },
+        "version": { "type": "string" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "result": { "enum": ["PASS", "FAIL"] },
+    "checks": { "type": "object" },
+    "evidence_backend": { "const": "sidecar-file-v1" },
+    "provider_call_performed": { "type": "boolean" },
+    "automation": {
+      "type": ["object", "null"],
+      "required": ["repository", "run_id", "sha"],
+      "properties": {
+        "repository": { "type": "string" },
+        "run_id": { "type": "integer", "minimum": 1 },
+        "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    }
+  }
+}

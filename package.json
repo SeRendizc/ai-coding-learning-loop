@@ -51,6 +51,7 @@
     "test": "node --test test/*.test.mjs",
     "demo": "node examples/run-comparison.mjs",
     "verify:evaluation": "node scripts/verify-evaluation.mjs",
+    "verify:harness-live:syntax": "node --check scripts/live-harness-smoke.mjs",
     "verify:harness": "node scripts/verify-harness.mjs ../deepseek-harness-upstream",
     "check": "npm test && npm run verify:evaluation"
   }

@@ -24,4 +24,10 @@ Not yet claimed:
 - native custom Session Event reload or Session Projection integration;
 - Web/headless parity.
 
+The `pinned-harness-live` workflow installs the bundle through the official
+profile command, verifies the composed config, and then mounts the plugin on
+the pinned Harness's actual Cordis, Tools, Commands, User Questions, and Skills
+services. Its artifact includes the composed config, a versioned live report,
+and restart-safe sidecar evidence. It deliberately performs no Provider call.
+
 The current evidence-backend decision is therefore `sidecar-file-v1`. It avoids depending on an unverified Developer Preview persistence extension and labels the boundary in reports. Run `npm run verify:harness` whenever the pinned checkout changes.
