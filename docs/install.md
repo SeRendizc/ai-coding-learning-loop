@@ -39,13 +39,16 @@ package reference. The public subpath exports are `contracts`, `core`,
 `evidence`, `session`, and `report`.
 
 The CLI can initialize a task from a Learning Contract and inspect evidence
-without Harness:
+without Harness. Keep disposable examples under `.local-test/`:
 
 ```bash
-node bin/ownership.mjs init fixtures/learning-contracts/tiny-parser.json ./evidence
-node bin/ownership.mjs status tiny-parser ./evidence
-node bin/ownership.mjs report tiny-parser ./evidence ./knowledge-report.md
+node bin/ownership.mjs init fixtures/learning-contracts/tiny-parser.json ./.local-test/evidence
+node bin/ownership.mjs status tiny-parser ./.local-test/evidence
+node bin/ownership.mjs report tiny-parser ./.local-test/evidence ./.local-test/knowledge-report.md
 ```
+
+For the complete repository, pinned-Harness, PowerShell, and interactive test
+procedures, see [local testing](local-testing.md).
 
 There is no evidence-schema migration promise before stable `1.0`. Pin the
 package version and retain original events before upgrading.

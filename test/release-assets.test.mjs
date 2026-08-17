@@ -61,3 +61,14 @@ test('pinned Harness live acceptance is reproducible and provider-free', async (
   assert.equal(report.provider_call_performed, false)
   assert.match(report.artifact.digest, /^sha256:[a-f0-9]{64}$/)
 })
+
+test('local testing keeps disposable evidence and credentials out of Git', async () => {
+  const ignore = await text('.gitignore')
+  const guide = await text('docs/local-testing.md')
+  assert.match(ignore, /^\.ai-coding-learning-loop\/$/m)
+  assert.match(ignore, /^\.local-test\/$/m)
+  assert.match(ignore, /^\.env$/m)
+  assert.doesNotMatch(ignore, /^\.dsh\/$/m)
+  assert.match(guide, /provider_call_performed: false/)
+  assert.match(guide, /47f943859bef60e4160492346772ded9b24f765a/)
+})

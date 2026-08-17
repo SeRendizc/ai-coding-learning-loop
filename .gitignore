@@ -1,0 +1,25 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+
+# Test, coverage, and package outputs
+coverage/
+.nyc_output/
+*.log
+*.tgz
+
+# Local AI Coding Learning Loop evidence
+.ai-coding-learning-loop/
+evidence/
+knowledge-report.md
+
+# Isolated local Harness profiles and smoke artifacts
+.local-test/
+
+# Local credentials and editor state
+.env
+.env.*
+!.env.example
+.idea/
+.DS_Store
+Thumbs.db

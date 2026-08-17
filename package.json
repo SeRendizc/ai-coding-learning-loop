@@ -53,6 +53,7 @@
     "verify:evaluation": "node scripts/verify-evaluation.mjs",
     "verify:harness-live:syntax": "node --check scripts/live-harness-smoke.mjs",
     "verify:harness": "node scripts/verify-harness.mjs ../deepseek-harness-upstream",
+    "check:local": "npm run check && npm run verify:harness-live:syntax",
     "check": "npm test && npm run verify:evaluation"
   }
 }

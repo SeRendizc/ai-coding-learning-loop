@@ -94,10 +94,12 @@ optional `commands` and `userQuestions`, `tools/pre-execute`, and
 Agent loop.
 
 Read [installation](docs/install.md), [compatibility](docs/compatibility.md),
-[architecture](docs/architecture.md), [limitations](docs/limitations.md), and
-the [release checklist](docs/release-checklist.md). 中文说明见
+[local testing](docs/local-testing.md), [architecture](docs/architecture.md),
+[limitations](docs/limitations.md), and the
+[release checklist](docs/release-checklist.md). 中文说明见
 [docs/README.zh-CN.md](docs/README.zh-CN.md).
 
 This package is an alpha candidate. npm publication, a pinned live Harness
-end-to-end run, outside-user feedback, and a community release post remain
-explicit external release gates.
+Provider-backed interactive run, outside-user feedback, and a community
+release post remain explicit external release gates. The provider-free pinned
+Harness service/recovery smoke is already verified.
