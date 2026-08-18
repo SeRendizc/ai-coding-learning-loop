@@ -47,7 +47,7 @@ export const Config = Object.freeze({
       if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
         issues.push({ message: 'maxEntries must be a positive safe integer', path: ['maxEntries'] })
       }
-      if (typeof evidenceRoot !== 'string' || value.evidenceRoot !== undefined && value.evidenceRoot.trim().length === 0) {
+      if (typeof evidenceRoot !== 'string' || evidenceRoot.trim().length === 0) {
         issues.push({ message: 'evidenceRoot must be a non-empty path', path: ['evidenceRoot'] })
       }
       if (issues.length > 0) return { issues }
@@ -692,8 +692,8 @@ export function getOwnershipController(ctx) {
 
 function continuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。工作区发现只能直接使用真正的 glob / grep / read / lsp 等只读工具，不要用 pwsh/bash 模拟列目录或搜索。如果用户此前已经提出明确 coding request，就原样保留；否则围绕学习目标提出一个边界清晰的任务。记录 Brief 后调用 ownership_lifecycle start_plan，再只调用一次 ownership_submit_plan。APPROVE 才能 start_work；REVISE 必须有用户真实修改意见；REJECT 立即停止且不能自动重写。只有后续新的用户消息明确要求重新规划或换任务时，才允许调用 reopen_plan。未经批准禁止实现或写入。'
-    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop by calling ownership_lifecycle status first. For workspace discovery, call real read-only glob, grep, read, lsp, search, or view tools directly; never emulate discovery with pwsh/bash. Preserve an existing concrete coding request, otherwise propose a bounded task. Record the Brief, call start_plan, then call ownership_submit_plan exactly once. APPROVE permits start_work; REVISE requires explicit user feedback; REJECT stops and must not auto-replan. Only a later new direct user message explicitly asking to replan or change the task permits reopen_plan. Do not implement before approval.'
+    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。工作区发现只能直接使用真正的 glob / grep / read / lsp 等只读工具，不要用 pwsh/bash 模拟列目录或搜索。如果用户此前已经提出明确 coding request，就原样保留；否则围绕学习目标提出一个边界清晰的任务。记录 Brief 后调用 ownership_lifecycle start_plan，再只调用一次 ownership_submit_plan；schema_version 和 work_unit_id 由 Runtime 自动补齐。APPROVE 才能 start_work；REVISE 必须有用户真实修改意见；REJECT 立即停止且不能自动重写。只有后续新的用户消息明确要求重新规划或换任务时，才允许调用 reopen_plan。未经用户批准 Plan，禁止任何实现或写入操作。'
+    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop by calling ownership_lifecycle status first. For workspace discovery, call real read-only glob, grep, read, lsp, search, or view tools directly; never emulate discovery with pwsh/bash. Preserve an existing concrete coding request, otherwise propose a bounded task. Record the Brief, call start_plan, then call ownership_submit_plan exactly once; Runtime supplies schema_version and work_unit_id. APPROVE permits start_work; REVISE requires explicit user feedback; REJECT stops and must not auto-replan. Only a later new direct user message explicitly asking to replan or change the task permits reopen_plan. Do not implement before approval.'
   return {
     id: `ownership-followup-${randomUUID()}`,
     role: 'user',
