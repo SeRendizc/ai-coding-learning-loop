@@ -4,13 +4,13 @@
   "description": "Learning-aware delegation, teaching delivery, and transfer gates for AI coding",
   "license": "MIT",
   "type": "module",
-  "main": "index.js",
+  "main": "index-h07.js",
   "types": "src/index.d.ts",
   "bin": {
     "ai-coding-learning-loop": "./bin/ownership.mjs"
   },
   "exports": {
-    ".": "./index.js",
+    ".": "./index-h07.js",
     "./contracts": "./src/contracts.mjs",
     "./core": "./src/core.mjs",
     "./evidence": "./src/evidence.mjs",
@@ -19,6 +19,7 @@
   },
   "files": [
     "index.js",
+    "index-h07.js",
     "cordis.patch.yml",
     "bin",
     "docs",
