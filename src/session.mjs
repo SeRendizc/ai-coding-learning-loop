@@ -140,8 +140,8 @@ export class LearningSession {
   }
 
   async recordPlanReview(taskId, decision, currentUserMessageCount = null, reviewSource = 'direct-message') {
-    if (!['APPROVE', 'REVISE'].includes(decision)) {
-      throw new TypeError('Plan review decision must be APPROVE or REVISE')
+    if (!['APPROVE', 'REVISE', 'REJECT'].includes(decision)) {
+      throw new TypeError('Plan review decision must be APPROVE, REVISE, or REJECT')
     }
     if (!['direct-message', 'user-question'].includes(reviewSource)) {
       throw new TypeError('Plan review source must be direct-message or user-question')
