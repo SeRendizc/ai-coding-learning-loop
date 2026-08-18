@@ -119,10 +119,9 @@ function taskIdForExecution(exec) {
 function directUserMessages(exec) {
   const messages = exec?.agent?.session?.deriveMessages?.()
   if (!Array.isArray(messages)) throw new Error('Harness session messages are unavailable for user evidence')
-  const userRole = messages.filter(candidate => candidate?.role === 'user'
+  return messages.filter(candidate => candidate?.role === 'user'
+    && candidate?.source?.kind === 'user'
     && Array.isArray(candidate.content) && candidate.content.length > 0)
-  const direct = userRole.filter(candidate => candidate?.source?.kind === 'user')
-  return direct.length > 0 ? direct : userRole
 }
 
 function currentUserMessageCount(exec) {
@@ -149,9 +148,16 @@ function assertSubstantiveGateAnswer(exec) {
 function assertPlanReviewDecision(exec, decision) {
   const text = messageText(directUserMessages(exec).at(-1) ?? {}).trim()
   if (text.length === 0) throw new Error('Plan review requires a direct user response')
-  if (decision === 'APPROVE'
-    && !/(批准|同意|可以开始|按此执行|开始实现|approve|approved|accept|go ahead|looks good)/i.test(text)) {
+  const approve = /(批准|同意|可以开始|按此执行|开始实现|approve|approved|accept|go ahead|looks good)/i
+  const reject = /(拒绝|不接受|不要这个方案|停止这个方案|reject|refuse|decline|do not proceed)/i
+  if (decision === 'APPROVE' && !approve.test(text)) {
     throw new Error('Plan APPROVE requires an explicit approval in the latest direct user message')
+  }
+  if (decision === 'REJECT' && !reject.test(text)) {
+    throw new Error('Plan REJECT requires an explicit rejection in the latest direct user message')
+  }
+  if (decision === 'REVISE' && (approve.test(text) || reject.test(text))) {
+    throw new Error('Plan REVISE requires modification feedback, not an approval or rejection')
   }
 }
 
@@ -291,15 +297,18 @@ function renderStatus(state, locale) {
 
 function renderPlan(plan, locale) {
   const section = (title, items) => `### ${title}\n${items.map((item, index) => `${index + 1}. ${item}`).join('\n') || '- 无'}\n`
+  const actionHint = locale === 'zh-CN'
+    ? '> 审核操作：确认执行 = 批准；拒绝 = 终止当前 Plan；“去聊天里说”会继续打开“修改方案”意见框。\n\n'
+    : '> Review actions: Approve accepts the Plan; Refuse stops this Plan; “Chat about it” opens a structured revision-feedback prompt.\n\n'
   if (locale === 'zh-CN') {
-    return `## 实现方案\n\n`
+    return `## 实现方案\n\n${actionHint}`
       + `### 本次编码任务\n${plan.engineering_task}\n\n`
       + section('实现步骤', plan.implementation_steps)
       + `\n${section('验证方案', plan.verification_plan)}`
       + `\n${section('学习锚点', plan.learning_anchors)}`
       + `\n${section('已知风险', plan.known_risks)}`
   }
-  return `## Implementation Plan\n\n`
+  return `## Implementation Plan\n\n${actionHint}`
     + `### Coding task\n${plan.engineering_task}\n\n`
     + section('Implementation steps', plan.implementation_steps)
     + `\n${section('Verification', plan.verification_plan)}`
@@ -312,25 +321,53 @@ function planReviewCopy(locale) {
     header: '方案审核',
     question: '请审核这次具体要做的编码任务和完整 Plan。只有批准后 AI 才能进入实现。',
     approve: '批准方案',
+    reject: '拒绝方案',
+    // Kept only for provider-free compatibility tests created before H0.4.
     revise: '要求修改',
     approveDescription: '批准当前编码任务与 Plan，允许随后进入 Build。',
-    reviseDescription: '退回 Planning；AI 必须修改任务或方案并重新提交。',
+    rejectDescription: '拒绝当前 Plan 并停止；AI 不会自动重写。',
+    revisionHeader: '修改方案',
+    revisionQuestion: '请写出你希望修改的内容。提交后 AI 只按这些意见修改 Plan，不会开始实现。',
   }
   return {
     header: 'Plan review',
     question: 'Review the concrete coding task and full Plan. Implementation remains blocked until approval.',
     approve: 'Approve Plan',
+    reject: 'Reject Plan',
+    // Kept only for provider-free compatibility tests created before H0.4.
     revise: 'Request revision',
     approveDescription: 'Approve this coding task and Plan and allow the later Build phase.',
-    reviseDescription: 'Return to Planning; AI must revise the task or Plan and resubmit.',
+    rejectDescription: 'Reject this Plan and stop; AI will not rewrite it automatically.',
+    revisionHeader: 'Revise Plan',
+    revisionQuestion: 'Describe exactly what should change. AI will revise only from this feedback and will not implement anything yet.',
+  }
+}
+
+async function requestPlanRevisionFeedback(userQuestions, exec, copy) {
+  try {
+    const response = await userQuestions.ask({
+      ...(exec.agent === undefined ? {} : { agent: exec.agent }),
+      signal: exec.signal,
+      questions: [{
+        id: 'ownership-plan-revision',
+        header: copy.revisionHeader,
+        question: copy.revisionQuestion,
+      }],
+    })
+    const answer = response?.answers?.find(candidate => candidate.id === 'ownership-plan-revision')
+    const feedback = answerValue(answer)?.trim()
+    return feedback || null
+  } catch (error) {
+    if (error?.code === 'ASK_CANCELLED') return null
+    throw error
   }
 }
 
 /**
- * Web's user-question provider requires request.agent and the user-question
- * service requires that value to be the exact live root Agent instance. This
- * mirrors Harness's own ask_user_question tool: always forward exec.agent on
- * the real model-facing Plan submission path.
+ * Harness rc.7 renders `plan-review` as a binary approve/decline decision plus
+ * a fixed “Chat about it” cancellation action. Ownership keeps that native
+ * card for the Plan body, but turns the cancellation into a second structured
+ * revision-feedback question instead of leaking the user into ordinary chat.
  */
 async function requestNativePlanReview(userQuestions, exec, plan, locale, { legacyCallerFallback = false } = {}) {
   if (!userQuestions || typeof userQuestions.ask !== 'function') return null
@@ -346,7 +383,7 @@ async function requestNativePlanReview(userQuestions, exec, plan, locale, { lega
         detail: renderPlan(plan, locale),
         options: [
           { label: copy.approve, description: copy.approveDescription },
-          { label: copy.revise, description: copy.reviseDescription },
+          { label: copy.reject, description: copy.rejectDescription },
         ],
         intent: { kind: 'plan-review', approve: copy.approve },
       }],
@@ -354,11 +391,20 @@ async function requestNativePlanReview(userQuestions, exec, plan, locale, { lega
     const answer = response?.answers?.find(candidate => candidate.id === 'ownership-plan-review')
     const selected = answer?.selected ?? []
     const feedback = answer?.custom?.trim() || null
-    if (selected.includes(copy.approve)) return { decision: 'APPROVE', feedback }
-    if (selected.includes(copy.revise) || feedback) return { decision: 'REVISE', feedback }
-    return null
+    if (selected.includes(copy.approve)) return { decision: 'APPROVE', feedback: null }
+    if (selected.includes(copy.reject)) return { decision: 'REJECT', feedback: null }
+    // Compatibility with older provider-free tests that returned an explicit
+    // revision label even though the real rc.7 panel never can.
+    if (selected.includes(copy.revise) && feedback) return { decision: 'REVISE', feedback }
+    return { decision: null, feedback: null, status: 'awaiting-user' }
   } catch (error) {
     if (error?.code === 'NO_PROVIDER') return null
+    if (error?.code === 'ASK_CANCELLED') {
+      const feedback = await requestPlanRevisionFeedback(userQuestions, exec, copy)
+      return feedback
+        ? { decision: 'REVISE', feedback }
+        : { decision: null, feedback: null, status: 'awaiting-user' }
+    }
     // Hidden compatibility path only: older provider-free smoke tests use an
     // ad-hoc ToolExecution agent that is intentionally not in Harness agents.
     if (legacyCallerFallback && error?.code === 'CALLER_NOT_LIVE') return null
@@ -396,11 +442,14 @@ async function persistPlanAndReview(session, interaction, taskId, plan, exec, op
     options,
   )
   if (nativeReview) {
-    await session.recordPlanReview(taskId, nativeReview.decision, null, 'user-question')
+    if (nativeReview.decision) {
+      await session.recordPlanReview(taskId, nativeReview.decision, null, 'user-question')
+    }
     return {
       channel: 'native-user-question',
       decision: nativeReview.decision,
       feedback: nativeReview.feedback,
+      ...(nativeReview.status ? { status: nativeReview.status } : {}),
     }
   }
   return { channel: 'direct-message-fallback', decision: null, feedback: null }
@@ -414,7 +463,7 @@ async function persistPlanAndReview(session, interaction, taskId, plan, exec, op
 function planSubmissionTool(session, interaction) {
   return {
     name: 'ownership_submit_plan',
-    description: 'Submit the complete proposed coding task and Plan for user review. Call only after ownership_lifecycle start_plan. The runtime supplies schema_version and the active work_unit_id. This tool opens the native Harness Plan Review UI when available.',
+    description: 'Submit the complete proposed coding task and Plan for user review. Call only after ownership_lifecycle start_plan. Runtime supplies schema_version and the active work_unit_id. APPROVE authorizes the later Build phase; REVISE is returned only with explicit user feedback; REJECT is terminal for this Plan; a null decision means stop and wait.',
     parameters: planSubmissionParameters(),
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -472,7 +521,7 @@ function lifecycleTool(session, interaction) {
             known_risks: { type: 'array', items: { type: 'string' } },
           },
         },
-        plan_review_decision: { type: 'string', enum: ['APPROVE', 'REVISE'] },
+        plan_review_decision: { type: 'string', enum: ['APPROVE', 'REVISE', 'REJECT'] },
         implementation_ref: { type: 'string' },
         verification_result: { type: 'string', enum: ['PASS', 'FAIL'] },
         verification_refs: { type: 'array', items: { type: 'string' } },
@@ -611,7 +660,7 @@ function installLifecycleTool(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:lifecycle',
       order: 117,
-      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. If none exists, inspect the workspace with read-only tools and propose a bounded task aligned to the learning target. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with the complete semantic fields: engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks. The runtime supplies schema version and active work-unit identity. ownership_submit_plan opens the native Plan Review UI when available; do not use the legacy ownership_lifecycle submit_plan action. The task and implementation scope are not authoritative until the user approves that Plan. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. If none exists, inspect the workspace with read-only tools and propose a bounded task aligned to the learning target. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks; Runtime supplies schema version and active work-unit identity. Honor the returned Plan decision exactly: APPROVE permits start_work; REVISE is valid only with explicit user feedback and must revise only from that feedback; REJECT means stop immediately in PLAN_REJECTED and never auto-replan; a null decision means stop and wait. Use ownership_lifecycle record_plan_review only when ownership_submit_plan explicitly returns channel=direct-message-fallback. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
     }))
   })
 }
@@ -634,8 +683,8 @@ export function getOwnershipController(ctx) {
 
 function continuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。先用只读方式检查当前对话和工作区：如果用户此前已经提出明确的 coding request，就把它原样保留为本次编码任务；如果没有，就围绕学习目标提出一个边界清晰、适合当前工作区的任务。记录 Brief 后调用 ownership_lifecycle start_plan。随后只调用一次 ownership_submit_plan，完整提供 engineering_task、implementation_steps、verification_plan、learning_anchors、known_risks；schema_version 和 work_unit_id 由 Runtime 自动补齐。ownership_submit_plan 会把“编码任务 + 完整 Plan”交给用户真正审核。未经用户批准 Plan，任务范围不算确定，禁止 start_work，也禁止任何实现或写入操作。'
-    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first for learning intent, ownership, and learner profile. Inspect the current conversation and workspace read-only. If the user already made a concrete coding request, preserve it; otherwise propose a bounded task aligned with the learning target and workspace. Record the Brief, call ownership_lifecycle start_plan, then call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks. Runtime supplies schema_version and work_unit_id. The dedicated Plan tool reviews the task and Plan with the user. Until approval, do not call start_work or perform implementation/mutation.'
+    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。先用只读方式检查当前对话和工作区：如果用户此前已经提出明确的 coding request，就把它原样保留为本次编码任务；如果没有，就围绕学习目标提出一个边界清晰、适合当前工作区的任务。记录 Brief 后调用 ownership_lifecycle start_plan。随后只调用一次 ownership_submit_plan，完整提供 engineering_task、implementation_steps、verification_plan、learning_anchors、known_risks；schema_version 和 work_unit_id 由 Runtime 自动补齐。严格按返回的审核结果行动：APPROVE 才能 start_work；REVISE 必须带用户真实修改意见且只能据此修改；REJECT 立即停止，绝不自动重写；decision 为空就停下等待。未经用户批准 Plan，禁止任何实现或写入操作。'
+    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first for learning intent, ownership, and learner profile. Inspect the current conversation and workspace read-only. Preserve an existing concrete coding request; otherwise propose a bounded task aligned with the learning target and workspace. Record the Brief, call ownership_lifecycle start_plan, then call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks. Runtime supplies schema_version and work_unit_id. Honor the review result exactly: APPROVE permits start_work; REVISE requires explicit user feedback and may revise only from it; REJECT means stop and never auto-replan; a null decision means stop and wait. Until approval, do not implement or mutate.'
   return {
     id: `ownership-followup-${randomUUID()}`,
     role: 'user',
