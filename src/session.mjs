@@ -172,7 +172,9 @@ export class LearningSession {
       payload: {
         decision,
         plan_ref: submitted.payload.plan_ref,
-        ...(currentUserMessageCount === null ? {} : { user_message_count_at_review: currentUserMessageCount }),
+        ...(decision === 'REJECT' && currentUserMessageCount !== null
+          ? { user_message_count_at_review: currentUserMessageCount }
+          : {}),
       },
     })
   }
