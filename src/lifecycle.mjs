@@ -5,7 +5,10 @@ const ALLOWED = Object.freeze({
   PLANNING: new Set(['AWAITING_PLAN_REVIEW']),
   AWAITING_PLAN_REVIEW: new Set(['PLAN_APPROVED', 'PLANNING', 'PLAN_REJECTED']),
   PLAN_APPROVED: new Set(['BUILDING']),
-  PLAN_REJECTED: new Set(),
+  // Rejecting a Plan stops that Plan, not the whole learning session. Only a
+  // later explicit user replan request may append plan.reopened and return to
+  // Planning; the agent cannot take this transition on its own.
+  PLAN_REJECTED: new Set(['PLANNING']),
   BUILDING: new Set(['VERIFYING']),
   VERIFYING: new Set(['DELIVERING', 'REVISING']),
   DELIVERING: new Set(['AWAITING_GATE']),
@@ -110,6 +113,14 @@ export function reduceLearningEvent(state, event) {
         })
       }
       throw new Error(`unknown plan review decision: ${String(payload.decision)}`)
+    case 'plan.reopened':
+      return freezeState({
+        ...state,
+        phase: transition(state.phase, 'PLANNING'),
+        // The rejected Plan remains historical evidence but is no longer the
+        // active proposal. A fresh ownership_submit_plan must establish a new ref.
+        plan_ref: null,
+      })
     case 'work_unit.implementation_submitted':
       return freezeState({ ...state, phase: transition(state.phase, 'VERIFYING') })
     case 'work_unit.verified':
