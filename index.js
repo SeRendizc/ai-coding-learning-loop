@@ -194,26 +194,26 @@ function modeUi(locale) {
   if (locale === 'zh-CN') return {
     GUIDED: {
       label: '教学模式（GUIDED）',
-      description: 'AI 负责分析、规划、教学、审查和测试建议；核心设计与实现由你完成。',
+      description: 'AI 负责教学、规划和审查，不写实现；核心设计与代码由你完成。',
     },
     HUMAN_LED: {
       label: '主创模式（HUMAN_LED）',
-      description: 'AI 搭脚手架、接口、机械代码和测试草稿；核心方法和数据流由你完成。',
+      description: 'AI 搭脚手架与测试；核心方法和数据流由你完成。',
     },
     AI_LED: {
       label: '领航模式（AI_LED）',
-      description: 'AI 负责大部分架构、代码、测试和修复；你负责预测、审查，并亲自修改至少一个关键学习锚点。',
+      description: 'AI 负责大部分实现与验证；你负责预测、审查并亲手修改一个关键点。',
     },
     DELEGATED: {
       label: '委托模式（DELEGATED）',
-      description: 'AI 完成全部实现与验证，再负责教学；你负责理解、迁移和 Gate。',
+      description: 'AI 完成全部实现、验证和教学；你负责理解、迁移并通过 Gate。',
     },
   }
   return {
-    GUIDED: { label: 'You implement (GUIDED)', description: 'AI analyzes, plans, teaches, reviews, and suggests tests; you own core design and implementation.' },
-    HUMAN_LED: { label: 'You lead the core (HUMAN_LED)', description: 'AI scaffolds interfaces, mechanical code, and test drafts; you implement core methods and data flow.' },
-    AI_LED: { label: 'AI-led implementation (AI_LED)', description: 'AI owns most architecture, code, tests, and fixes; you predict, review, and modify at least one learning anchor.' },
-    DELEGATED: { label: 'Fully delegated (DELEGATED)', description: 'AI implements and verifies everything, then teaches; you own transfer and the Gate.' },
+    GUIDED: { label: 'You implement (GUIDED)', description: 'AI teaches, plans, and reviews without writing the implementation; you own the design and code.' },
+    HUMAN_LED: { label: 'You lead the core (HUMAN_LED)', description: 'AI scaffolds and drafts tests; you implement the core methods and data flow.' },
+    AI_LED: { label: 'AI-led implementation (AI_LED)', description: 'AI owns most implementation and verification; you predict, review, and modify one key point.' },
+    DELEGATED: { label: 'Fully delegated (DELEGATED)', description: 'AI implements, verifies, and teaches; you own understanding, transfer, and the Gate.' },
   }
 }
 
@@ -235,11 +235,11 @@ function startCopy(locale) {
     targetQuestion: '这次你想通过 AI Coding 学会什么？一句话告诉我就行，具体做什么、怎么学会在 Plan 里拆好给你审核。',
     expertiseQuestion: '你目前对这个目标有多熟？',
     modeQuestion: '这次你希望怎么分工？从你全实现到 AI 全实现都可以。',
-    confirmQuestion: '确认这次的学习设置吗？接受后 AI 会提出具体编码任务和详细 Plan，再单独交给你审核。',
-    acceptLabel: '接受学习合同',
+    confirmQuestion: '确认这次的学习设置吗？',
+    acceptLabel: '确认并生成 Plan',
     cancelLabel: '返回修改',
-    acceptDescription: '保存学习目标和责任边界，并自动进入 Brief 与 Plan；不会直接开始写代码。',
-    cancelDescription: '不保存合同，返回后重新填写。',
+    acceptDescription: '保存学习目标与分工，生成具体编码 Plan；批准 Plan 前不会开始实现。',
+    cancelDescription: '返回重新选择。',
     accepted: queued => queued ? '学习合同已接受，正在生成包含具体编码任务的 Plan；Plan 会单独弹出给你审核，批准前不会开始实现。' : '学习合同已接受。请发送“继续”生成包含具体编码任务的 Plan；批准前不会开始实现。',
     cancelled: '未创建学习合同；你可以重新运行 /ownership start。',
   }
@@ -247,20 +247,21 @@ function startCopy(locale) {
     targetQuestion: 'What do you want to learn through AI Coding this time? One sentence is enough; the concrete task and learning anchors will be proposed in the Plan for your review.',
     expertiseQuestion: 'How familiar are you with this target?',
     modeQuestion: 'How should implementation responsibility be split, from fully human to fully AI?',
-    confirmQuestion: 'Confirm these learning settings? After acceptance AI will propose the concrete coding task inside a separate Plan for your review.',
-    acceptLabel: 'Accept Learning Contract',
+    confirmQuestion: 'Confirm these learning settings?',
+    acceptLabel: 'Confirm & Generate Plan',
     cancelLabel: 'Revise inputs',
-    acceptDescription: 'Persist learning intent and ownership, then automatically move to Brief and Plan; no implementation starts yet.',
-    cancelDescription: 'Persist nothing and return to edit the inputs.',
+    acceptDescription: 'Save the learning target and ownership, then generate the coding Plan; implementation stays blocked until Plan approval.',
+    cancelDescription: 'Return to revise the settings.',
     accepted: queued => queued ? 'Learning Contract accepted. AI is generating a Plan that includes the concrete coding task; implementation remains blocked until you approve it.' : 'Learning Contract accepted. Send “continue” to generate a Plan with the concrete coding task; implementation remains blocked until approval.',
     cancelled: 'Learning Contract was not created; run /ownership start again when ready.',
   }
 }
 
 /**
- * Generic Harness questions render detail through MarkdownText and have a
- * fixed-height scroll seat. Keep the Contract detail deliberately plain and
- * compact: no Markdown headings/lists, no nested prose, no duplicated policy.
+ * The generic Harness question card gives `detail` its own left-aligned body
+ * seat, which visually diverges from the header/title inset. Keep the Contract
+ * out of that seat entirely: summarize only the durable user-facing facts in
+ * the card title and put the Plan boundary in the accept-option description.
  */
 function renderContractSummary(contract) {
   const locale = contract.learner_profile?.locale
@@ -268,9 +269,9 @@ function renderContractSummary(contract) {
   const expertise = expertiseUi(locale)[contract.learner_profile?.expertise]
   const target = contract.learning_targets[0]?.description ?? ''
   if (locale === 'zh-CN') {
-    return `学习目标：${target} ｜ 学习方式：${mode.label} ｜ 熟悉程度：${expertise?.label ?? contract.learner_profile?.expertise} ｜ 理解验证：最多 ${contract.gate.max_attempts} 次迁移题。具体编码任务将在 Plan 中单独审核；批准 Plan 前不会开始实现。`
+    return `目标「${target}」｜${mode.label}｜${expertise?.label ?? contract.learner_profile?.expertise}｜最多 ${contract.gate.max_attempts} 次迁移验证`
   }
-  return `Learning Contract: target: ${target} | mode: ${mode.label} | expertise: ${expertise?.label ?? contract.learner_profile?.expertise} | transfer Gate: at most ${contract.gate.max_attempts} attempts. The concrete coding task is proposed in a separate Plan; implementation stays blocked until Plan approval.`
+  return `Target “${target}” | ${mode.label} | ${expertise?.label ?? contract.learner_profile?.expertise} | up to ${contract.gate.max_attempts} transfer attempts`
 }
 
 function renderStatus(state, locale) {
@@ -717,9 +718,8 @@ async function startContract(commandCtx, session, invocation) {
     signal: invocation.signal,
     questions: [{
       id: 'accept-learning-contract',
-      header: locale === 'zh-CN' ? '确认学习合同' : 'Confirm Learning Contract',
-      question: copy.confirmQuestion,
-      detail: renderContractSummary(contract),
+      header: locale === 'zh-CN' ? '确认学习设置' : 'Confirm Learning Settings',
+      question: renderContractSummary(contract),
       options: [
         { label: copy.acceptLabel, description: copy.acceptDescription },
         { label: copy.cancelLabel, description: copy.cancelDescription },
