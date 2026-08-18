@@ -5,9 +5,9 @@ const ALLOWED = Object.freeze({
   PLANNING: new Set(['AWAITING_PLAN_REVIEW']),
   AWAITING_PLAN_REVIEW: new Set(['PLAN_APPROVED', 'PLANNING', 'PLAN_REJECTED']),
   PLAN_APPROVED: new Set(['BUILDING']),
-  // Rejecting a Plan stops that Plan, not the whole learning session. Only a
-  // later explicit user replan request may append plan.reopened and return to
-  // Planning; the agent cannot take this transition on its own.
+  // This edge exists only for the plan.reopened event. plan.started is
+  // separately constrained to BRIEFED so the model cannot bypass the explicit
+  // user-replan gate by calling start_plan after rejection.
   PLAN_REJECTED: new Set(['PLANNING']),
   BUILDING: new Set(['VERIFYING']),
   VERIFYING: new Set(['DELIVERING', 'REVISING']),
@@ -82,6 +82,7 @@ export function reduceLearningEvent(state, event) {
     case 'work_unit.started':
       return freezeState({ ...state, phase: transition(state.phase, 'BUILDING') })
     case 'plan.started':
+      if (state.phase !== 'BRIEFED') throw new Error('plan start requires BRIEFED')
       return freezeState({ ...state, phase: transition(state.phase, 'PLANNING') })
     case 'plan.submitted':
       return freezeState({
@@ -114,6 +115,7 @@ export function reduceLearningEvent(state, event) {
       }
       throw new Error(`unknown plan review decision: ${String(payload.decision)}`)
     case 'plan.reopened':
+      if (state.phase !== 'PLAN_REJECTED') throw new Error('plan reopen requires PLAN_REJECTED')
       return freezeState({
         ...state,
         phase: transition(state.phase, 'PLANNING'),
