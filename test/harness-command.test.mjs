@@ -15,6 +15,7 @@ class CommandContext {
     this.command = null
     this.skill = null
     this.lifecycleTool = null
+    this.planTool = null
     this.promptSection = null
     this.commands = { register: definition => { this.command = definition } }
     this.userQuestions = { ask: async request => {
@@ -28,8 +29,12 @@ class CommandContext {
     } }
     this.skills = { register: definition => { this.skill = definition } }
     this.tools = { register: definition => {
-      this.lifecycleTool = definition
-      return () => { this.lifecycleTool = null }
+      if (definition.name === 'ownership_lifecycle') this.lifecycleTool = definition
+      if (definition.name === 'ownership_submit_plan') this.planTool = definition
+      return () => {
+        if (this.lifecycleTool === definition) this.lifecycleTool = null
+        if (this.planTool === definition) this.planTool = null
+      }
     } }
     this.systemPrompt = { section: definition => {
       this.promptSection = definition
@@ -58,10 +63,10 @@ function learningTargetAnswer({ target = 'event replay' } = {}) {
 function responsibilityAnswers({ mode = 'DELEGATED', expertise = 'PRACTITIONER', locale = 'en' } = {}) {
   const labels = locale === 'zh-CN'
     ? {
-        GUIDED: '用户实现（GUIDED）',
-        HUMAN_LED: '用户主导核心（HUMAN_LED）',
-        AI_LED: 'AI 主导实现（AI_LED）',
-        DELEGATED: 'AI 全权实现（DELEGATED）',
+        GUIDED: '教学模式（GUIDED）',
+        HUMAN_LED: '主创模式（HUMAN_LED）',
+        AI_LED: '领航模式（AI_LED）',
+        DELEGATED: '委托模式（DELEGATED）',
         BEGINNER: '入门（BEGINNER）',
         PRACTITIONER: '熟练（PRACTITIONER）',
         EXPERT: '专家（EXPERT）',
@@ -114,7 +119,7 @@ test('bundled Skill parser accepts Windows CRLF line endings', () => {
   assert.equal(parseBundledSkill(source), '# Body\n')
 })
 
-test('Harness bundle registers Skill, lifecycle tool, and system guidance', async t => {
+test('Harness bundle registers Skill, lifecycle tool, dedicated Plan tool, and system guidance', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext([])
@@ -125,7 +130,9 @@ test('Harness bundle registers Skill, lifecycle tool, and system guidance', asyn
   assert.match(ctx.skill.content, /Deliver completely/)
   assert.match(ctx.skill.resourceBase.path, /skills[/\\]ai-coding-learning-loop$/)
   assert.equal(ctx.lifecycleTool.name, 'ownership_lifecycle')
+  assert.equal(ctx.planTool.name, 'ownership_submit_plan')
   assert.match(ctx.promptSection.text, /engineering task is proposed inside the Plan/)
+  assert.match(ctx.promptSection.text, /ownership_submit_plan exactly once/)
 })
 
 test('Cordis configuration seam applies defaults and rejects invalid values', () => {
@@ -168,6 +175,7 @@ test('/ownership start asks one free-text learning target and keeps coding scope
   assert.equal(contractQuestion.intent, undefined)
   assert.match(contractQuestion.detail, /Learning Contract/)
   assert.match(contractQuestion.detail, /concrete coding task.*separate Plan/i)
+  assert.doesNotMatch(contractQuestion.detail, /##|\*\*|^- /m)
   assert.doesNotMatch(contractQuestion.detail, /schema_version/)
   assert.doesNotMatch(contractQuestion.detail, /task_id/)
 })
@@ -189,7 +197,7 @@ test('/ownership localizes selections after reading a Chinese learning target', 
   assert.deepEqual(first.map(question => question.id), ['learning-target'])
   const second = ctx.questionRequests[1].questions
   assert.deepEqual(second.find(question => question.id === 'delegation-mode').options.map(option => option.label), [
-    '用户实现（GUIDED）', '用户主导核心（HUMAN_LED）', 'AI 主导实现（AI_LED）', 'AI 全权实现（DELEGATED）',
+    '教学模式（GUIDED）', '主创模式（HUMAN_LED）', '领航模式（AI_LED）', '委托模式（DELEGATED）',
   ])
   assert.deepEqual(second.find(question => question.id === 'learner-expertise').options.map(option => option.label), [
     '入门（BEGINNER）', '熟练（PRACTITIONER）', '专家（EXPERT）',
@@ -198,7 +206,7 @@ test('/ownership localizes selections after reading a Chinese learning target', 
   assert.deepEqual(events[0].payload.contract.learner_profile, { expertise: 'PRACTITIONER', locale: 'zh-CN' })
 })
 
-test('/ownership start automatically queues Plan continuation with task-proposal boundary', async t => {
+test('/ownership start automatically queues dedicated Plan continuation with task-proposal boundary', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
@@ -212,7 +220,8 @@ test('/ownership start automatically queues Plan continuation with task-proposal
   assert.equal(queued[0].role, 'user')
   assert.deepEqual(queued[0].source, { kind: 'plugin', plugin: 'ai-coding-learning-loop' })
   assert.match(queued[0].content[0].text, /ownership_lifecycle status/)
-  assert.match(queued[0].content[0].text, /plan_record\.engineering_task/)
+  assert.match(queued[0].content[0].text, /ownership_submit_plan/)
+  assert.match(queued[0].content[0].text, /schema_version 和 work_unit_id 由 Runtime 自动补齐/)
   assert.match(queued[0].content[0].text, /未经用户批准 Plan，任务范围不算确定/)
   assert.match(result.text, /正在生成包含具体编码任务的 Plan/)
 })
@@ -246,7 +255,7 @@ test('/ownership status is a human command and missing contracts fail closed', a
   assert.deepEqual(result, { kind: 'error', text: 'No Learning Contract exists for this session.' })
 })
 
-test('model status leaves coding scope uncommitted before Plan and Plan schema requires it', async t => {
+test('model status leaves coding scope uncommitted and dedicated Plan schema owns only semantic fields', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext(contractAnswers({
@@ -263,27 +272,17 @@ test('model status leaves coding scope uncommitted before Plan and Plan schema r
   assert.equal(status.context.work_units[0].id, 'task-main')
   assert.equal(status.context.learning_targets[0].description, 'understand retry budgets')
 
-  const planSchema = ctx.lifecycleTool.parameters.properties.plan_record
-  assert.equal(planSchema.additionalProperties, false)
-  assert.deepEqual(planSchema.required, [
-    'schema_version', 'work_unit_id', 'engineering_task', 'implementation_steps',
-    'verification_plan', 'learning_anchors', 'known_risks',
+  assert.deepEqual(ctx.planTool.parameters.required, [
+    'engineering_task', 'implementation_steps', 'verification_plan', 'learning_anchors', 'known_risks',
   ])
-  assert.equal(planSchema.properties.engineering_task.type, 'string')
-  assert.equal(planSchema.properties.engineering_task.minLength, 1)
-  assert.equal(planSchema.properties.verification_plan.type, 'array')
-  assert.equal(planSchema.properties.learning_anchors.type, 'array')
-  assert.equal(planSchema.properties.known_risks.type, 'array')
-
-  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['planning context'] }, exec)
-  await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
-  await assert.rejects(() => ctx.lifecycleTool.execute({ action: 'submit_plan', plan_record: {
-    schema_version: 'ai-coding-learning-loop.plan.v1', work_unit_id: 'task-main',
-    implementation_steps: ['implement'], verification_plan: ['test'], learning_anchors: ['budget'], known_risks: [],
-  } }, exec), /plan_record\.engineering_task is required/)
+  assert.equal(ctx.planTool.parameters.properties.schema_version, undefined)
+  assert.equal(ctx.planTool.parameters.properties.work_unit_id, undefined)
+  assert.equal(ctx.planTool.parameters.properties.engineering_task.minLength, 1)
+  assert.equal(ctx.planTool.parameters.properties.verification_plan.type, 'array')
+  assert.equal(ctx.lifecycleTool.parameters.properties.action.enum.includes('submit_plan'), false)
 })
 
-test('submit_plan reviews the concrete coding task and stores only decision and plan_ref', async t => {
+test('dedicated Plan tool forwards exact calling agent and runtime-owned Plan identity', async t => {
   const root = await mkdtemp(join(tmpdir(), 'ownership-command-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const ctx = new CommandContext([
@@ -296,23 +295,24 @@ test('submit_plan reviews the concrete coding task and stores only decision and 
   await ctx.command.handler({ rawInput: 'start', ...exec })
   await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['retry planning context'] }, exec)
   await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
-  const result = await ctx.lifecycleTool.execute({ action: 'submit_plan', plan_record: {
-    schema_version: 'ai-coding-learning-loop.plan.v1',
-    work_unit_id: 'task-main',
+  const result = await ctx.planTool.execute({
     engineering_task: 'implement a deterministic retry policy exercise',
     implementation_steps: ['implement policy'],
     verification_plan: ['run unit tests'],
     learning_anchors: ['attempt and deadline budgets'],
     known_risks: ['clock-dependent tests'],
-  } }, exec)
+  }, exec)
   assert.equal(result.state.phase, 'PLAN_APPROVED')
   assert.deepEqual(result.plan_review, { channel: 'native-user-question', decision: 'APPROVE', feedback: null })
   const reviewRequest = ctx.questionRequests.at(-1)
-  assert.equal(reviewRequest.agent, undefined)
+  assert.equal(reviewRequest.agent, exec.agent)
   assert.deepEqual(reviewRequest.questions[0].intent, { kind: 'plan-review', approve: 'Approve Plan' })
   assert.match(reviewRequest.questions[0].detail, /Implementation Plan/)
   assert.match(reviewRequest.questions[0].detail, /implement a deterministic retry policy exercise/)
   const events = await getOwnershipController(ctx).ledger.read('session-native-review')
+  const planPayload = events.find(event => event.type === 'plan.submitted').payload.plan
+  assert.equal(planPayload.schema_version, 'ai-coding-learning-loop.plan.v1')
+  assert.equal(planPayload.work_unit_id, 'task-main')
   const reviewPayload = events.find(event => event.type === 'plan.reviewed').payload
   assert.deepEqual(Object.keys(reviewPayload).sort(), ['decision', 'plan_ref'])
   assert.equal(reviewPayload.decision, 'APPROVE')
@@ -331,12 +331,13 @@ test('native Plan revision can revise coding scope while feedback stays transien
   await ctx.command.handler({ rawInput: 'start', ...exec })
   await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['规划范围'] }, exec)
   await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
-  const result = await ctx.lifecycleTool.execute({ action: 'submit_plan', plan_record: {
-    schema_version: 'ai-coding-learning-loop.plan.v1', work_unit_id: 'task-main',
+  const result = await ctx.planTool.execute({
     engineering_task: '实现同步和异步重试策略练习',
-    implementation_steps: ['同步和异步实现'], verification_plan: ['pytest'],
-    learning_anchors: ['预算'], known_risks: [],
-  } }, exec)
+    implementation_steps: ['同步和异步实现'],
+    verification_plan: ['pytest'],
+    learning_anchors: ['预算'],
+    known_risks: [],
+  }, exec)
   assert.equal(result.state.phase, 'PLANNING')
   assert.equal(result.plan_review.decision, 'REVISE')
   assert.equal(result.plan_review.feedback, '先不要做 asyncio 版本')
