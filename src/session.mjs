@@ -44,11 +44,16 @@ export class LearningSession {
   async context(taskId) {
     const { contract, events, state } = await this.#contractAndState(taskId)
     const submitted = latest(events, 'plan.submitted')
+    const reviewed = latest(events, 'plan.reviewed')
+    const latestPlanReviewDecision = submitted && reviewed?.payload?.plan_ref === submitted.payload.plan_ref
+      ? reviewed.payload.decision
+      : null
     return Object.freeze({
       contract: Object.freeze(structuredClone(contract)),
       state: freezeRecoveredState(structuredClone(state)),
       latest_plan: submitted?.payload?.plan ? Object.freeze(structuredClone(submitted.payload.plan)) : null,
       latest_plan_ref: submitted?.payload?.plan_ref ?? null,
+      latest_plan_review_decision: latestPlanReviewDecision,
     })
   }
 
@@ -146,6 +151,10 @@ export class LearningSession {
     if (!['direct-message', 'user-question'].includes(reviewSource)) {
       throw new TypeError('Plan review source must be direct-message or user-question')
     }
+    if (currentUserMessageCount !== null
+      && (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount < 0)) {
+      throw new TypeError('currentUserMessageCount must be a non-negative safe integer')
+    }
     const { events, state } = await this.#contractAndState(taskId)
     if (state.phase !== 'AWAITING_PLAN_REVIEW') throw new Error('Plan review is not currently expected')
     const submitted = latest(events, 'plan.submitted')
@@ -160,7 +169,35 @@ export class LearningSession {
       actor: 'user',
       work_unit_id: submitted.work_unit_id,
       refs: [submitted.payload.plan_ref],
-      payload: { decision, plan_ref: submitted.payload.plan_ref },
+      payload: {
+        decision,
+        plan_ref: submitted.payload.plan_ref,
+        ...(currentUserMessageCount === null ? {} : { user_message_count_at_review: currentUserMessageCount }),
+      },
+    })
+  }
+
+  async reopenPlan(taskId, currentUserMessageCount) {
+    if (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount < 1) {
+      throw new TypeError('currentUserMessageCount must include a direct user replan request')
+    }
+    const { events, state } = await this.#contractAndState(taskId)
+    if (state.phase !== 'PLAN_REJECTED') throw new Error('Rejected Plan is not currently reopenable')
+    const reviewed = latest(events, 'plan.reviewed')
+    if (reviewed?.payload?.decision !== 'REJECT') throw new Error('Plan reopen requires a rejected Plan')
+    const submitted = latest(events, 'plan.submitted')
+    const boundary = reviewed.payload.user_message_count_at_review
+      ?? submitted?.payload?.user_message_count_at_submit
+    if (boundary !== undefined && currentUserMessageCount <= boundary) {
+      throw new Error('Plan replan requires a new direct user message after rejection')
+    }
+    return this.#appendProjected({
+      task_id: taskId,
+      type: 'plan.reopened',
+      actor: 'user',
+      work_unit_id: reviewed.work_unit_id,
+      refs: [reviewed.payload.plan_ref],
+      payload: { previous_plan_ref: reviewed.payload.plan_ref },
     })
   }
 
