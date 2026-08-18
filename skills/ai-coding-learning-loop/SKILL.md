@@ -9,100 +9,70 @@ Treat delivery and learning as separate outcomes. Never claim that passing tests
 
 ## Start or resume the contract
 
-1. Keep the Learning Contract intentionally small. `/ownership start` captures the user's one-sentence learning target, responsibility split, and learner expertise. Do not require the user to pre-specify a coding task or curriculum merely to enter the loop.
-2. `/ownership start` is restart-safe. If this Harness session already has a durable accepted Learning Contract, running `/ownership start` again must resume that existing session instead of asking the onboarding questions or creating another Contract. This is the recovery path after provider, network, credential, model, or automatic-continuation failure.
-3. On every fresh or resumed model turn, call `ownership_lifecycle` with `action: "status"` first. The returned durable phase is the recovery truth. Do not blindly replay actions that already happened.
-4. Treat the learning target as the anchor. Refine it into concrete learning anchors in the Plan; do not make the user pre-author a curriculum.
-5. Concrete engineering scope belongs to the reviewed Plan, not the Learning Contract. If the conversation already contains a concrete coding request from the user, preserve it as the proposed `engineering_task`. If none exists, inspect the workspace with actual read-only tools and propose a bounded task aligned with the learning target. A proposed task is not authoritative until Plan approval.
-6. During pre-Build discovery, call the real Harness `glob`, `grep`, `read`, `lsp`, `search`, or `view` capabilities directly. Never use `pwsh` or `bash` as a surrogate for listing, searching, or reading just because the shell command itself looks read-only. The host deliberately keeps arbitrary shell execution blocked before an approved Plan.
-7. `ask_user_question` is non-mutating and may be used for ordinary clarification before Build. Its answer is returned to the agent as an ordinary tool result, not as a new direct chat message. Never treat a generic `ask_user_question` result as direct-message lifecycle evidence.
-8. Read `learner_profile.locale` and answer in that language. Match teaching depth to `learner_profile.expertise`:
-   - `BEGINNER`: define terms and prerequisites, show every step, use annotated examples, and check the mental model frequently.
-   - `PRACTITIONER`: assume foundations; focus on data flow, rationale, trade-offs, failure paths, and one transfer example.
-   - `EXPERT`: be terse and terminology-dense; focus on deltas, invariants, edge cases, alternatives, and evidence.
-   Presentation depth changes; correctness and Gate standards do not.
-9. Respect the confirmed mode from `GUIDED`, `HUMAN_LED`, `AI_LED`, or `DELEGATED` using [ownership-policy.md](references/ownership-policy.md). Never silently increase AI ownership.
-10. First-time `/ownership start` presents a compact Learning Contract and waits for explicit acceptance. Contract acceptance confirms learning intent and responsibility only. It is neither coding-scope approval nor Plan approval and does not authorize implementation.
+1. `/ownership start` captures one learning target, responsibility split, and learner expertise. The Learning Contract owns learning intent, delegation, expertise, and Gate policy; it does not own concrete coding scope.
+2. `/ownership start` is restart-safe. If a durable Contract already exists in this Harness session, resume from the current durable phase instead of recreating onboarding.
+3. On every fresh or resumed model turn call `ownership_lifecycle` with `action: "status"` first. Durable phase is the recovery truth; do not replay already completed lifecycle actions.
+4. If the conversation already contains a concrete coding request, preserve it. Otherwise inspect the workspace with real read-only `glob`, `grep`, `read`, `lsp`, `search`, or `view` tools and propose a bounded task aligned with the learning target. Do not use `pwsh`/`bash` as discovery surrogates before Build.
+5. `ask_user_question` is non-mutating clarification. Its result is an ordinary tool result, not direct-chat lifecycle evidence.
+6. Match teaching depth to `learner_profile.expertise`, but never weaken correctness or Gate requirements.
+7. Respect the confirmed delegation mode. Never silently increase AI implementation ownership.
 
-## Run each work unit
+## Plan and approval
 
-The successful path is:
+Successful path:
 
 `DISCOVER → CONTRACTED → BRIEFED → PLANNING → AWAITING_PLAN_REVIEW → PLAN_APPROVED → BUILDING → VERIFYING → DELIVERING → AWAITING_GATE → CLOSED`
 
-Plan review has three non-Build outcomes:
+Plan review alternatives:
 
-- `AWAITING_PLAN_REVIEW --REVISE--> PLANNING`
-- `AWAITING_PLAN_REVIEW --REJECT--> PLAN_REJECTED`
-- `AWAITING_PLAN_REVIEW --no decision--> AWAITING_PLAN_REVIEW`
+- `REVISE → PLANNING`, only with explicit user revision feedback;
+- `REJECT → PLAN_REJECTED`, stop and do not automatically generate another Plan;
+- no decision → remain `AWAITING_PLAN_REVIEW`.
 
-A rejected Plan is not an authorization to generate another one. However, rejection does not permanently kill the Learning Contract. There are exactly two legal reopen paths:
+A rejected Plan has exactly two legal reopen paths:
 
-- **Fresh direct chat request:** if a later new direct user message explicitly asks to replan, change the task, or replace the rejected Plan, call `ownership_lifecycle reopen_plan`. It verifies both the wording and direct-user message boundary.
-- **Structured UI confirmation:** if the user has not already sent such a chat message and you need to ask what should happen next, call **`ownership_reopen_plan`**. That Runtime-owned tool asks the user through `ctx.userQuestions`, treats only an affirmative answer as human reopen evidence, and returns any typed task/revision detail transiently to the model.
+- a later fresh direct user message explicitly asks to replan/change the task → `ownership_lifecycle reopen_plan`;
+- no such chat message yet, but a structured next-action choice is useful → `ownership_reopen_plan`.
 
-Never call `start_plan` directly from `PLAN_REJECTED`. Never use generic `ask_user_question` followed by lifecycle `reopen_plan`: the generic answer is only a tool result and does not satisfy the direct-chat evidence boundary.
+Never call `start_plan` from `PLAN_REJECTED`. Never pretend a generic question result is a direct user message.
 
-- Before first Planning, record a planning Brief: explain the learning target, ownership boundary, relevant workspace context, discovery constraints, and verification expectations. Do not pretend a concrete coding scope has already been approved.
-- In Planning, determine the proposed `engineering_task`. Preserve an existing direct user coding request when one exists; otherwise propose a bounded task that fits the learning target and current workspace. Then produce implementation steps, verification, learning anchors, and known risks.
-- After `ownership_lifecycle start_plan`, use **`ownership_submit_plan`** for the engineering-scope and Plan handoff. Supply exactly the five semantic fields it requests: `engineering_task`, `implementation_steps`, `verification_plan`, `learning_anchors`, and `known_risks`. Do not invent or repeat `schema_version` or `work_unit_id`; the runtime derives them from durable Planning state.
-- After either legal reopen path, the rejected Plan remains historical evidence only. Do not reuse its task or parameters unless the new user instruction or structured reopen result explicitly retains them. Produce a fresh Plan from the new human intent plus current trusted context.
-- `ownership_submit_plan` opens the Harness Plan Review UI using the exact live calling agent and shows the proposed coding task plus full Plan. Do not use the legacy `ownership_lifecycle submit_plan` action in a new model turn.
-- Harness rc.7 exposes its native Plan card as a binary approve/refuse decision plus a fixed `Chat about it / 去聊天里说` cancellation button. The Ownership adapter treats that cancellation as a request to open a second structured **Plan revision feedback** question. Do not tell the user to leave the review and type feedback in ordinary chat when this native adapter is active.
-- Treat the returned review result as authoritative and exhaustive:
-  - `decision: "APPROVE"`: the Plan is approved. Call `start_work` immediately before implementation begins.
-  - `decision: "REVISE"`: valid only when `feedback` is non-empty and came from the user. Revise only from that feedback, stay in Planning, and submit the updated Plan again. Do not implement.
-  - `decision: "REJECT"`: the user rejected this Plan. Stop in `PLAN_REJECTED`; do not auto-generate another Plan. If a structured next-action choice is useful, call `ownership_reopen_plan`. If the user later sends an explicit direct replan message, use lifecycle `reopen_plan`.
-  - `decision: null`: no review decision was completed. Stay in `AWAITING_PLAN_REVIEW`, stop, and wait. Do not infer approval or revision intent.
-- When `plan_review.channel` is `native-user-question`, do not duplicate the same approval request in ordinary chat.
-- Use `ownership_lifecycle record_plan_review` **only** when `ownership_submit_plan` explicitly returns `plan_review.channel: "direct-message-fallback"`, which means no interaction provider exists. Show the same coding task and Plan in chat and stop; only a new direct user message may then be recorded. Never use this fallback to recover from a native Web cancellation.
-- The host plugin enforces the Plan-before-Build boundary at `tools/pre-execute`: once a contract exists, mutating/execution-capable tools are denied outside `BUILDING`, `VERIFYING`, and `REVISING`. Read-only discovery and human-interaction tools remain available. If a `pwsh`/`bash` discovery attempt is denied, switch to the real read-only filesystem/search tools instead of retrying the shell.
-- Respect the implementation owner. For a human-owned core method, guide and review instead of writing it.
-- Verify engineering evidence before Deliver. Failed verification returns to implementation.
-- Teach the verified result during Deliver. Do not reduce Deliver to a completion summary.
-- Open Gate only when the Deliver record is complete and bound to the current implementation reference.
+For a fresh work unit:
 
-## Resume by durable phase
+1. `ownership_lifecycle status`;
+2. `ownership_lifecycle brief`;
+3. `ownership_lifecycle start_plan`;
+4. `ownership_submit_plan(engineering_task, implementation_steps, verification_plan, learning_anchors, known_risks)` exactly once. Runtime derives schema version and work-unit identity;
+5. honor `APPROVE / REVISE / REJECT / null` exactly;
+6. only after APPROVE call `ownership_lifecycle start_work`, immediately before implementation.
 
-After a provider/network/model failure or any later `/ownership start` resume, read status and continue from the exact phase:
+The native rc.7 Plan Review card exposes approve/refuse plus a fixed `Chat about it / 去聊天里说` cancellation action. The adapter catches that cancellation and opens the structured `修改方案 / Revise Plan` feedback question. Do not tell the user to leave the native review and type revision feedback in ordinary chat.
 
-- `CONTRACTED`: establish the Brief, then `start_plan`.
-- `BRIEFED`: `start_plan`.
-- `PLANNING`: finish or revise the fresh Plan and submit it; do not start Planning again.
-- `AWAITING_PLAN_REVIEW`: wait for review; do not submit another Plan unless the current review produces REVISE.
-- `PLAN_APPROVED`: `start_work` immediately before implementation.
-- `PLAN_REJECTED`: stop by default. If the latest fresh direct chat message explicitly asks to replan/change the task, call lifecycle `reopen_plan`. Otherwise, when you need to ask the user what should happen next, call `ownership_reopen_plan`; never substitute generic `ask_user_question` as reopen evidence.
-- `BUILDING / VERIFYING / REVISING / DELIVERING / AWAITING_GATE`: continue only with that phase's legal next action and existing evidence.
-- `CLOSED`: report the final dual status; do not recreate the Contract.
+## Build and engineering evidence
 
-## Persist the lifecycle in Harness
+Respect the approved Plan and delegation mode. Do not silently expand scope.
 
-For the first successful work unit:
+After implementation, new model turns must use the dedicated post-Build tools:
 
-1. `ownership_lifecycle status` first on every fresh or resumed agent turn; consume its `context` instead of reading sidecar files;
-2. `ownership_lifecycle brief` with the contracted `work_unit_id` and planning-brief topics just established;
-3. `ownership_lifecycle start_plan` with that work unit;
-4. call `ownership_submit_plan` once with the complete semantic Plan fields; Runtime materializes `schema_version` and current `work_unit_id`;
-5. honor exactly one of `APPROVE / REVISE / REJECT / null`; use `record_plan_review` only for explicit direct-message fallback;
-6. after `REJECT`, do not invent a replacement Plan. Either stop, use `ownership_reopen_plan` for a fresh structured human next-action choice, or use lifecycle `reopen_plan` only after a fresh explicit direct chat request;
-7. after a legal reopen, create a fresh Plan in `PLANNING` and submit it through `ownership_submit_plan`;
-8. call `start_work` only after `APPROVE` and immediately before implementation begins;
-9. `submit_implementation` with a stable implementation digest or commit ref;
-10. `record_verification` with `PASS` or `FAIL`, the same implementation ref, and concrete test/check refs;
-11. after `FAIL`, use `start_revision` before changing the implementation;
-12. after engineering `PASS`, teach fully, then use `complete_deliver` with the complete Deliver record;
-13. use `ask_gate` only for a Gate bound to that Deliver;
-14. after the direct user answers, call `record_gate_answer` with no answer text; the plugin records only that a new direct response occurred;
-15. call `evaluate_gate` separately with criterion-level evidence;
-16. when verified implementation changes after Deliver, call `invalidate_implementation` before rebuilding.
+1. `ownership_submit_implementation(implementation_ref)` — supply only the stable implementation digest/ref. Runtime derives task and active work-unit identity.
+2. `ownership_record_verification(result, verification_refs)` — supply only PASS/FAIL plus concrete test/check refs. Runtime derives work unit and latest implementation ref.
+3. On engineering FAIL, use `ownership_lifecycle start_revision` before changing implementation, then rebuild and resubmit implementation evidence.
+4. On engineering PASS, teach the verified result completely before Deliver.
 
-The portable Plan v1 core still accepts older evidence that predates `engineering_task`; this is recovery compatibility only. The hidden legacy lifecycle Plan action also remains for existing deterministic evidence and provider-free compatibility tests. New model turns must use `ownership_submit_plan`.
+Legacy lifecycle actions `submit_implementation` and `record_verification` remain recovery-only compatibility paths and are intentionally hidden from the model-facing lifecycle schema. Do not call them in new turns.
 
-Never skip an action to force a later phase. The tools derive `task_id` from the calling Harness session, reject unknown work units and illegal ordering, and do not authorize code or other tools by themselves. On Gate `RETRY`, engineering stays `PASS`: reteach the recorded gaps, create a replacement Deliver, and ask a new equivalent Gate. Do not start a code revision unless engineering evidence also failed or the implementation changed.
+For durable-execution examples, preserve these safety invariants:
+
+- caller-owned mutable arguments must be copied/canonicalized into a stable durable intent; a frozen outer object does not make an inner mutable map immutable;
+- exact duplicate = same idempotency key + same canonical request → coalesce/replay the same logical request;
+- conflicting duplicate = same idempotency key + different canonical request → fail closed;
+- after `invocation_started` is durable, a generic provider exception/timeout does not prove no side effect. Treat it as `UNKNOWN_OUTCOME` unless the provider proves known-no-side-effect or offers reliable stable idempotency/reconciliation;
+- unknown outcome must never blind-rerun a side-effectful invocation.
+
+These are teaching/plan correctness constraints, not permission to build a second Agent Runtime.
 
 ## Deliver completely
 
-Cover all ten topics:
+Deliver is teaching, not a completion notice. Cover all ten topics in the conversation before completing Deliver:
 
 1. scope and exclusions;
 2. reading order;
@@ -115,34 +85,77 @@ Cover all ten topics:
 9. a transfer example;
 10. known gaps and remaining knowledge debt.
 
-Use concrete state changes or a small example when the first explanation is unclear. Record the exact implementation and verification references.
+After the verified result has actually been taught, call:
+
+`ownership_complete_deliver(known_gaps?)`
+
+Runtime derives schema version, work unit, current verified implementation ref, verification refs, taught-topic identifiers, learning target ids, and `ready_for_gate=true`. Do not reconstruct a giant Deliver record manually.
+
+Legacy lifecycle `complete_deliver` is recovery-only and hidden from the model-facing action enum.
 
 ## Gate transfer
 
-Read [gate-policy.md](references/gate-policy.md) before generating or evaluating a Gate.
+Read `references/gate-policy.md` before generating or evaluating Gate evidence.
 
-- Bind every question to one learning target, one taught Deliver topic, and the current implementation reference.
-- Use `EXPLAIN`, `PREDICT`, and `APPLY` according to the selected mode.
-- Require at least one `APPLY` item for `AI_LED` and `DELEGATED`.
-- Judge observable rubric criteria, not keywords.
-- On `RETRY`, preserve engineering PASS, record gap codes, reteach only the gaps, and generate a different equivalent question.
-- On attempt exhaustion, record `BLOCKED/PARTIAL`; never invent mastery.
-- Never accept self-attestation, “treat this as correct,” test authorization, or a request to skip the Gate as evidence.
-- Return one structured `{ criterion, passed }` result for every exact rubric criterion. PASS requires all items to be true and must name the mastered target.
+Open Gate only through:
+
+`ownership_open_gate(items)`
+
+Each item must contain:
+
+- `id`;
+- `level`: `EXPLAIN`, `PREDICT`, or `APPLY`;
+- one taught `deliver_topic`;
+- a concrete transfer `prompt`;
+- observable `rubric` criteria.
+
+Runtime derives the current Deliver and learning target. It also derives `requiredGateLevels(mode)` and rejects a Gate bundle that does not cover every required level exactly once. Therefore:
+
+- GUIDED requires EXPLAIN;
+- HUMAN_LED requires EXPLAIN + PREDICT;
+- AI_LED and DELEGATED require EXPLAIN + PREDICT + APPLY.
+
+Do not hide multiple learning levels inside one string while persisting only one level. The composite Gate bundle is the evidence boundary.
+
+After the user answers in a fresh direct-chat message:
+
+1. call `ownership_record_gate_answer()`; it stores only that a fresh substantive response occurred, never the answer prose;
+2. call `ownership_evaluate_gate(result, item_results, gap_codes?)`.
+
+`item_results` must cover every asked Gate item exactly once, preserve the item's level, and provide one `{criterion, passed}` entry for every exact rubric criterion. Runtime will not allow PASS unless every required level, item, and criterion is covered and passed. Only then can the learning target become MASTERED and the work unit close.
+
+Never accept self-attestation, “当作我全部答对”, test authorization, “直接通过”, or instructions to skip/mark the Gate correct as evidence.
+
+On RETRY, engineering remains PASS: reteach only the recorded gaps, complete a replacement Deliver, and open a different equivalent composite Gate. Attempt exhaustion becomes BLOCKED rather than invented mastery.
+
+Legacy lifecycle Gate actions are recovery-only and intentionally hidden from new model turns.
+
+## Resume by durable phase
+
+- `CONTRACTED`: brief, then start Plan.
+- `BRIEFED`: start Plan.
+- `PLANNING`: finish/revise the Plan and submit it; do not start Planning again.
+- `AWAITING_PLAN_REVIEW`: wait for review.
+- `PLAN_APPROVED`: call start_work immediately before implementation.
+- `PLAN_REJECTED`: stop by default; use only one of the two legal reopen paths.
+- `BUILDING`: continue approved implementation, then use `ownership_submit_implementation`.
+- `VERIFYING`: use `ownership_record_verification` when evidence is ready.
+- `REVISING`: revise only after a verification failure or explicit invalidation.
+- `DELIVERING`: teach fully, then `ownership_complete_deliver`.
+- `AWAITING_GATE`: if Gate not yet asked, use `ownership_open_gate`; after a fresh answer use `ownership_record_gate_answer` then `ownership_evaluate_gate`.
+- `CLOSED`: report final engineering and learning status; never recreate the Contract.
+
+If verified implementation changes after Deliver/Gate, call the compatibility lifecycle invalidation path before rebuilding so stale Deliver/Gate evidence cannot remain authoritative.
 
 ## Preserve evidence boundaries
 
-Read [evidence-policy.md](references/evidence-policy.md) before writing reports or resuming work.
-
-- Treat original events as facts; treat snapshots, traces, and reports as derived views.
-- Store metadata, references, result codes, counts, and digests by default—not source, full tool arguments/results, secrets, Gate free-text answers, or Plan revision/replan prose.
-- Native Plan revision feedback is transient to the current model turn; durable evidence records only the review decision, Plan reference, and user-message boundary metadata needed for recovery.
-- `plan.reopened` records the previous Plan ref plus whether reopen evidence came from a fresh direct message or Runtime-owned user-question interaction. It does not persist the user's replan prose or structured custom answer.
-- Generic `ask_user_question` answers are ordinary tool results and are never promoted to direct-message evidence merely because a human supplied them.
-- If implementation changes after Deliver, invalidate its reference, verify again, create a new Deliver, then reopen Gate.
-- Keep tool authorization separate from delegation and learning status. The host pre-execute policy enforces only the lifecycle write boundary; normal Harness approvals and sandbox policy still apply.
-- Use the host runtime for execution, approval, persistence, and recovery. Do not create a second agent loop.
+- Original events are facts; snapshots/traces/reports are derived views.
+- Store metadata, refs, result codes, counts, and digests by default—not source code, full tool arguments/results, secrets, Plan revision/replan prose, or Gate free-text answers.
+- `plan.reopened` records previous Plan ref plus whether reopen evidence came from direct-message or Runtime-owned user-question interaction; it does not persist the user's replan prose.
+- Generic question answers are never promoted to direct-message evidence.
+- Harness remains authoritative for provider/session/agent/tool execution, approval, sandbox, and runtime behavior. The learning plugin adds learning/ownership evidence and a fail-closed lifecycle boundary; it must not become a second agent loop.
+- Engineering PASS and learning MASTERED are separate facts.
 
 ## Finish
 
-Report both `engineering_status` and `learning_status`. Include unresolved targets and evidence limitations. Use [knowledge-report.md](assets/knowledge-report.md) when a host does not generate a report automatically.
+Report both `engineering_status` and `learning_status`, unresolved targets, and evidence limitations. A successful test suite may establish engineering PASS; only a fully enforced composite transfer Gate may establish learning MASTERED.
