@@ -28,6 +28,7 @@ const BUNDLED_SKILL_PATH = fileURLToPath(new URL('./skills/ai-coding-learning-lo
 const probes = new WeakMap()
 const controllers = new WeakMap()
 const IMPLEMENTATION_PHASES = new Set(['BUILDING', 'VERIFYING', 'REVISING'])
+const APPROVED_PLAN_PHASES = new Set(['PLAN_APPROVED', 'BUILDING', 'VERIFYING', 'REVISING', 'DELIVERING', 'AWAITING_GATE', 'CLOSED'])
 const MODE_CODES = ['GUIDED', 'HUMAN_LED', 'AI_LED', 'DELEGATED']
 const EXPERTISE_CODES = ['BEGINNER', 'PRACTITIONER', 'EXPERT']
 
@@ -46,7 +47,7 @@ export const Config = Object.freeze({
       if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
         issues.push({ message: 'maxEntries must be a positive safe integer', path: ['maxEntries'] })
       }
-      if (typeof evidenceRoot !== 'string' || evidenceRoot.trim().length === 0) {
+      if (typeof evidenceRoot !== 'string' || value.evidenceRoot !== undefined && value.evidenceRoot.trim().length === 0) {
         issues.push({ message: 'evidenceRoot must be a non-empty path', path: ['evidenceRoot'] })
       }
       if (issues.length > 0) return { issues }
@@ -136,8 +137,12 @@ function messageText(message) {
     .join('\n')
 }
 
+function latestDirectUserText(exec) {
+  return messageText(directUserMessages(exec).at(-1) ?? {}).trim()
+}
+
 function assertSubstantiveGateAnswer(exec) {
-  const text = messageText(directUserMessages(exec).at(-1) ?? {}).trim()
+  const text = latestDirectUserText(exec)
   if (text.length === 0) throw new Error('Gate requires a substantive direct user answer')
   const override = /(当作|假设|视为).{0,16}(答对|正确|通过)|全部答对|无需.{0,8}(回答|作答)|直接.{0,8}(通过|pass)|treat.{0,24}(correct|pass)|assume.{0,24}correct|mark.{0,24}pass|skip.{0,16}gate/i
   if (override.test(text)) {
@@ -146,7 +151,7 @@ function assertSubstantiveGateAnswer(exec) {
 }
 
 function assertPlanReviewDecision(exec, decision) {
-  const text = messageText(directUserMessages(exec).at(-1) ?? {}).trim()
+  const text = latestDirectUserText(exec)
   if (text.length === 0) throw new Error('Plan review requires a direct user response')
   const approve = /(批准|同意|可以开始|按此执行|开始实现|approve|approved|accept|go ahead|looks good)/i
   const reject = /(拒绝|不接受|不要这个方案|停止这个方案|reject|refuse|decline|do not proceed)/i
@@ -158,6 +163,15 @@ function assertPlanReviewDecision(exec, decision) {
   }
   if (decision === 'REVISE' && (approve.test(text) || reject.test(text))) {
     throw new Error('Plan REVISE requires modification feedback, not an approval or rejection')
+  }
+}
+
+function assertExplicitReplanRequest(exec) {
+  const text = latestDirectUserText(exec)
+  if (text.length === 0) throw new Error('Plan reopen requires a direct user replan request')
+  const replan = /(重新规划|重新计划|重新做.{0,6}(方案|plan)|重新出.{0,6}(方案|plan)|换.{0,4}(任务|方案)|改.{0,4}任务|任务改为|新的任务|新任务|replan|plan again|new plan|change (?:the )?task|replace (?:the )?task|different task)/i
+  if (!replan.test(text)) {
+    throw new Error('Plan reopen requires an explicit user request to replan or change the task')
   }
 }
 
@@ -263,12 +277,6 @@ function startCopy(locale) {
   }
 }
 
-/**
- * The generic Harness question card gives `detail` its own left-aligned body
- * seat, which visually diverges from the header/title inset. Keep the Contract
- * out of that seat entirely: summarize only the durable user-facing facts in
- * the card title and put the Plan boundary in the accept-option description.
- */
 function renderContractSummary(contract) {
   const locale = contract.learner_profile?.locale
   const mode = modeUi(locale)[contract.mode]
@@ -322,7 +330,6 @@ function planReviewCopy(locale) {
     question: '请审核这次具体要做的编码任务和完整 Plan。只有批准后 AI 才能进入实现。',
     approve: '批准方案',
     reject: '拒绝方案',
-    // Kept only for provider-free compatibility tests created before H0.4.
     revise: '要求修改',
     approveDescription: '批准当前编码任务与 Plan，允许随后进入 Build。',
     rejectDescription: '拒绝当前 Plan 并停止；AI 不会自动重写。',
@@ -334,7 +341,6 @@ function planReviewCopy(locale) {
     question: 'Review the concrete coding task and full Plan. Implementation remains blocked until approval.',
     approve: 'Approve Plan',
     reject: 'Reject Plan',
-    // Kept only for provider-free compatibility tests created before H0.4.
     revise: 'Request revision',
     approveDescription: 'Approve this coding task and Plan and allow the later Build phase.',
     rejectDescription: 'Reject this Plan and stop; AI will not rewrite it automatically.',
@@ -363,12 +369,6 @@ async function requestPlanRevisionFeedback(userQuestions, exec, copy) {
   }
 }
 
-/**
- * Harness rc.7 renders `plan-review` as a binary approve/decline decision plus
- * a fixed “Chat about it” cancellation action. Ownership keeps that native
- * card for the Plan body, but turns the cancellation into a second structured
- * revision-feedback question instead of leaking the user into ordinary chat.
- */
 async function requestNativePlanReview(userQuestions, exec, plan, locale, { legacyCallerFallback = false } = {}) {
   if (!userQuestions || typeof userQuestions.ask !== 'function') return null
   const copy = planReviewCopy(locale)
@@ -393,8 +393,6 @@ async function requestNativePlanReview(userQuestions, exec, plan, locale, { lega
     const feedback = answer?.custom?.trim() || null
     if (selected.includes(copy.approve)) return { decision: 'APPROVE', feedback: null }
     if (selected.includes(copy.reject)) return { decision: 'REJECT', feedback: null }
-    // Compatibility with older provider-free tests that returned an explicit
-    // revision label even though the real rc.7 panel never can.
     if (selected.includes(copy.revise) && feedback) return { decision: 'REVISE', feedback }
     return { decision: null, feedback: null, status: 'awaiting-user' }
   } catch (error) {
@@ -405,22 +403,32 @@ async function requestNativePlanReview(userQuestions, exec, plan, locale, { lega
         ? { decision: 'REVISE', feedback }
         : { decision: null, feedback: null, status: 'awaiting-user' }
     }
-    // Hidden compatibility path only: older provider-free smoke tests use an
-    // ad-hoc ToolExecution agent that is intentionally not in Harness agents.
     if (legacyCallerFallback && error?.code === 'CALLER_NOT_LIVE') return null
     throw error
   }
 }
 
+function engineeringTaskStatus(context) {
+  if (!context.latest_plan?.engineering_task) {
+    return context.contract.engineering_task ? 'legacy-contract' : 'to-be-proposed-in-plan'
+  }
+  const phase = context.state?.phase
+  if (phase === 'PLAN_REJECTED') return 'rejected-plan'
+  if (phase === 'PLANNING' && context.state?.plan_ref == null) return 'previous-plan-not-authoritative'
+  if (phase === 'AWAITING_PLAN_REVIEW') return 'proposed-in-plan'
+  if (APPROVED_PLAN_PHASES.has(phase)) return 'approved-plan'
+  return 'proposed-in-plan'
+}
+
 function buildModelContext(context) {
   const contract = context.contract
+  const status = engineeringTaskStatus(context)
+  const historicalOnly = status === 'rejected-plan' || status === 'previous-plan-not-authoritative'
   return {
-    engineering_task: context.latest_plan?.engineering_task ?? contract.engineering_task ?? null,
-    engineering_task_status: context.latest_plan?.engineering_task
-      ? 'proposed-in-plan'
-      : contract.engineering_task
-        ? 'legacy-contract'
-        : 'to-be-proposed-in-plan',
+    engineering_task: historicalOnly
+      ? null
+      : context.latest_plan?.engineering_task ?? contract.engineering_task ?? null,
+    engineering_task_status: status,
     mode: contract.mode,
     learner_profile: contract.learner_profile ?? null,
     learning_targets: contract.learning_targets,
@@ -428,6 +436,7 @@ function buildModelContext(context) {
     gate: contract.gate,
     latest_plan: context.latest_plan,
     latest_plan_ref: context.latest_plan_ref,
+    latest_plan_review_decision: context.latest_plan_review_decision ?? null,
   }
 }
 
@@ -443,7 +452,12 @@ async function persistPlanAndReview(session, interaction, taskId, plan, exec, op
   )
   if (nativeReview) {
     if (nativeReview.decision) {
-      await session.recordPlanReview(taskId, nativeReview.decision, null, 'user-question')
+      await session.recordPlanReview(
+        taskId,
+        nativeReview.decision,
+        currentUserMessageCount(exec),
+        'user-question',
+      )
     }
     return {
       channel: 'native-user-question',
@@ -455,15 +469,10 @@ async function persistPlanAndReview(session, interaction, taskId, plan, exec, op
   return { channel: 'direct-message-fallback', decision: null, feedback: null }
 }
 
-/**
- * Model-facing Plan handoff. Runtime-owned schema version and active work-unit
- * identity are materialized from durable state, so the model only supplies the
- * semantic content that actually requires reasoning.
- */
 function planSubmissionTool(session, interaction) {
   return {
     name: 'ownership_submit_plan',
-    description: 'Submit the complete proposed coding task and Plan for user review. Call only after ownership_lifecycle start_plan. Runtime supplies schema_version and the active work_unit_id. APPROVE authorizes the later Build phase; REVISE is returned only with explicit user feedback; REJECT is terminal for this Plan; a null decision means stop and wait.',
+    description: 'Submit the complete proposed coding task and Plan for user review. Call only while Planning. Runtime supplies schema_version and active work_unit_id. APPROVE authorizes the later Build phase; REVISE requires explicit user feedback; REJECT stops the current Plan and forbids automatic replanning; a later explicit user replan request must use ownership_lifecycle reopen_plan before a fresh submission.',
     parameters: planSubmissionParameters(),
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -486,7 +495,7 @@ function planSubmissionTool(session, interaction) {
 function lifecycleTool(session, interaction) {
   return {
     name: 'ownership_lifecycle',
-    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use ownership_submit_plan for the Plan handoff; submit_plan here is a hidden compatibility action and is not advertised.',
+    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use ownership_submit_plan for Plan handoff. reopen_plan is the only legal escape from PLAN_REJECTED and requires a fresh explicit direct-user replan request.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -496,14 +505,12 @@ function lifecycleTool(session, interaction) {
           type: 'string',
           enum: [
             'status', 'brief', 'start_work', 'submit_implementation', 'record_verification',
-            'start_plan', 'record_plan_review', 'start_revision', 'complete_deliver',
+            'start_plan', 'reopen_plan', 'record_plan_review', 'start_revision', 'complete_deliver',
             'ask_gate', 'record_gate_answer', 'evaluate_gate', 'invalidate_implementation',
           ],
         },
         work_unit_id: { type: 'string' },
         topics: { type: 'array', items: { type: 'string' } },
-        // Retained for direct compatibility callers; submit_plan is omitted
-        // from the model-visible action enum and new agents use ownership_submit_plan.
         plan_record: {
           type: 'object',
           additionalProperties: false,
@@ -566,6 +573,10 @@ function lifecycleTool(session, interaction) {
           break
         case 'start_plan':
           await session.startPlan(taskId, requiredString(input.work_unit_id, 'work_unit_id'))
+          break
+        case 'reopen_plan':
+          assertExplicitReplanRequest(exec)
+          await session.reopenPlan(taskId, currentUserMessageCount(exec))
           break
         case 'submit_plan': {
           const plan = requiredObject(input.plan_record, 'plan_record')
@@ -643,8 +654,6 @@ function lifecycleTool(session, interaction) {
 
 function installLifecycleTool(ctx, session) {
   const interaction = { userQuestions: null }
-  // Register the dedicated Plan tool first so the legacy test seam that keeps
-  // the last registration as lifecycleTool remains stable.
   ctx.effect(() => ctx.tools.register(planSubmissionTool(session, interaction)))
   ctx.effect(() => ctx.tools.register(lifecycleTool(session, interaction)))
   if (typeof ctx.inject !== 'function') return
@@ -660,7 +669,7 @@ function installLifecycleTool(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:lifecycle',
       order: 117,
-      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. If none exists, inspect the workspace with read-only tools and propose a bounded task aligned to the learning target. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks; Runtime supplies schema version and active work-unit identity. Honor the returned Plan decision exactly: APPROVE permits start_work; REVISE is valid only with explicit user feedback and must revise only from that feedback; REJECT means stop immediately in PLAN_REJECTED and never auto-replan; a null decision means stop and wait. Use ownership_lifecycle record_plan_review only when ownership_submit_plan explicitly returns channel=direct-message-fallback. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. During CONTRACTED/BRIEFED/PLANNING/AWAITING_PLAN_REVIEW/PLAN_REJECTED, workspace discovery must use the actual read-only glob, grep, read, lsp, search, or view tools directly; never use pwsh or bash as a surrogate for listing or searching. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks; Runtime supplies schema version and active work-unit identity. Honor the returned Plan decision exactly: APPROVE permits start_work; REVISE is valid only with explicit user feedback and must revise only from that feedback; REJECT means stop immediately in PLAN_REJECTED and never auto-replan. If and only if a later direct user message explicitly asks to replan, change the task, or replace the rejected Plan, call ownership_lifecycle reopen_plan; do not call start_plan from PLAN_REJECTED. A null decision means stop and wait. Use ownership_lifecycle record_plan_review only when ownership_submit_plan explicitly returns channel=direct-message-fallback. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
     }))
   })
 }
@@ -683,10 +692,22 @@ export function getOwnershipController(ctx) {
 
 function continuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。先用只读方式检查当前对话和工作区：如果用户此前已经提出明确的 coding request，就把它原样保留为本次编码任务；如果没有，就围绕学习目标提出一个边界清晰、适合当前工作区的任务。记录 Brief 后调用 ownership_lifecycle start_plan。随后只调用一次 ownership_submit_plan，完整提供 engineering_task、implementation_steps、verification_plan、learning_anchors、known_risks；schema_version 和 work_unit_id 由 Runtime 自动补齐。严格按返回的审核结果行动：APPROVE 才能 start_work；REVISE 必须带用户真实修改意见且只能据此修改；REJECT 立即停止，绝不自动重写；decision 为空就停下等待。未经用户批准 Plan，禁止任何实现或写入操作。'
-    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first for learning intent, ownership, and learner profile. Inspect the current conversation and workspace read-only. Preserve an existing concrete coding request; otherwise propose a bounded task aligned with the learning target and workspace. Record the Brief, call ownership_lifecycle start_plan, then call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks. Runtime supplies schema_version and work_unit_id. Honor the review result exactly: APPROVE permits start_work; REVISE requires explicit user feedback and may revise only from it; REJECT means stop and never auto-replan; a null decision means stop and wait. Until approval, do not implement or mutate.'
+    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。工作区发现只能直接使用真正的 glob / grep / read / lsp 等只读工具，不要用 pwsh/bash 模拟列目录或搜索。如果用户此前已经提出明确 coding request，就原样保留；否则围绕学习目标提出一个边界清晰的任务。记录 Brief 后调用 ownership_lifecycle start_plan，再只调用一次 ownership_submit_plan。APPROVE 才能 start_work；REVISE 必须有用户真实修改意见；REJECT 立即停止且不能自动重写。只有后续新的用户消息明确要求重新规划或换任务时，才允许调用 reopen_plan。未经批准禁止实现或写入。'
+    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop by calling ownership_lifecycle status first. For workspace discovery, call real read-only glob, grep, read, lsp, search, or view tools directly; never emulate discovery with pwsh/bash. Preserve an existing concrete coding request, otherwise propose a bounded task. Record the Brief, call start_plan, then call ownership_submit_plan exactly once. APPROVE permits start_work; REVISE requires explicit user feedback; REJECT stops and must not auto-replan. Only a later new direct user message explicitly asking to replan or change the task permits reopen_plan. Do not implement before approval.'
   return {
     id: `ownership-followup-${randomUUID()}`,
+    role: 'user',
+    content: [{ type: 'text', text }],
+    source: { kind: 'plugin', plugin: name },
+  }
+}
+
+function resumeContinuationMessage(locale) {
+  const text = locale === 'zh-CN'
+    ? '这是已存在 Learning Contract 的恢复执行，不要重新创建 Contract，也不要盲目重放已经完成的 lifecycle 动作。先调用 ownership_lifecycle status，以持久化 phase 为唯一恢复事实：CONTRACTED 才 brief；BRIEFED 才 start_plan；PLANNING 直接完成/重提 Plan；AWAITING_PLAN_REVIEW 停下等待审核；PLAN_APPROVED 才 start_work；PLAN_REJECTED 默认停止，只有当前最新真人消息明确要求重新规划、换任务或替换方案时才调用 reopen_plan，绝不能从 PLAN_REJECTED 调 start_plan；后续 BUILDING/VERIFYING/REVISING/DELIVERING/AWAITING_GATE 按当前 phase 的合法下一步继续。Planning 期间只能直接使用真正的 glob / grep / read / lsp 等只读工具，禁止用 pwsh/bash 模拟发现。'
+    : 'Resume the already-durable Learning Contract; do not recreate it and do not blindly replay completed lifecycle actions. Call ownership_lifecycle status first and resume only from its durable phase. CONTRACTED may brief; BRIEFED may start_plan; PLANNING may submit/revise; AWAITING_PLAN_REVIEW must wait; PLAN_APPROVED may start_work; PLAN_REJECTED must stop unless the latest new direct user message explicitly asks to replan/change the task, in which case call reopen_plan (never start_plan directly). Continue later phases only by their legal next action. During Planning use real read-only glob/grep/read/lsp/search/view tools, never pwsh/bash as discovery surrogates.'
+  return {
+    id: `ownership-resume-${randomUUID()}`,
     role: 'user',
     content: [{ type: 'text', text }],
     source: { kind: 'plugin', plugin: name },
@@ -696,6 +717,12 @@ function continuationMessage(locale) {
 function queuePlanContinuation(agent, locale) {
   if (typeof agent?.followup !== 'function') return false
   agent.followup(continuationMessage(locale))
+  return true
+}
+
+function queueResumeContinuation(agent, locale) {
+  if (typeof agent?.followup !== 'function') return false
+  agent.followup(resumeContinuationMessage(locale))
   return true
 }
 
@@ -783,19 +810,40 @@ async function startContract(commandCtx, session, invocation) {
   return { kind: 'success', text: copy.accepted(queued) }
 }
 
+async function resumeExistingContract(session, invocation, events) {
+  const contract = events.find(event => event.type === 'contract.accepted')?.payload?.contract
+  if (!contract) {
+    return { kind: 'error', text: 'Ownership evidence exists but no accepted Learning Contract can be recovered.' }
+  }
+  const state = await session.state(String(invocation.agent.session.id))
+  const locale = contract.learner_profile?.locale ?? inferLocale(invocation)
+  if (state.closed) {
+    return { kind: 'success', text: locale === 'zh-CN'
+      ? `该会话已有学习合同，且流程已关闭（当前阶段：${state.phase}）。不会重复创建 Contract。`
+      : `This session already has a Learning Contract and is closed at ${state.phase}; no duplicate Contract was created.` }
+  }
+  const queued = queueResumeContinuation(invocation.agent, locale)
+  return { kind: 'success', text: locale === 'zh-CN'
+    ? `检测到该会话已有学习合同，已从持久化状态恢复（当前阶段：${state.phase}），不会重复创建 Contract。${queued ? '正在继续当前流程。' : '请发送“继续”恢复当前流程。'}`
+    : `An existing Learning Contract was recovered at phase ${state.phase}; no duplicate Contract was created. ${queued ? 'Resuming the current flow now.' : 'Send “continue” to resume the current flow.'}` }
+}
+
 function installCommands(ctx, session) {
   if (typeof ctx.inject !== 'function') return
   ctx.inject(['commands', 'userQuestions'], commandCtx => {
     commandCtx.commands.register({
       name: 'ownership',
-      description: 'Start or inspect an AI Coding Learning Loop',
+      description: 'Start or resume an AI Coding Learning Loop, or inspect its status/report',
       input: { hint: 'start | status | report' },
       recordInput: false,
       handler: async invocation => {
         const action = invocation.rawInput.trim()
         const taskId = String(invocation.agent.session.id)
-        if (action === 'start') return startContract(commandCtx, session, invocation)
         const events = await session.ledger.read(taskId)
+        if (action === 'start') {
+          if (events.length === 0) return startContract(commandCtx, session, invocation)
+          return resumeExistingContract(session, invocation, events)
+        }
         if (events.length === 0) return { kind: 'error', text: 'No Learning Contract exists for this session.' }
         const contract = events.find(event => event.type === 'contract.accepted')?.payload?.contract
         if (action === 'status') {
@@ -847,9 +895,12 @@ async function ownershipToolDecision(session, exec, next) {
   if (isPlanningSafeTool(exec.name)) return next()
   const phase = (await session.state(taskId)).phase
   if (IMPLEMENTATION_PHASES.has(phase)) return next()
+  const shellHint = ['pwsh', 'bash'].includes(String(exec.name).toLowerCase())
+    ? ' Planning discovery must call the real glob, grep, read, lsp, search, or view tools directly; pwsh/bash remains blocked even when its command only lists or reads files.'
+    : ''
   return {
     kind: 'deny',
-    reason: `Ownership policy: tool ${String(exec.name)} is blocked while phase=${phase}. Mutating or execution-capable tools are available only after an approved Plan enters BUILDING/VERIFYING/REVISING.`,
+    reason: `Ownership policy: tool ${String(exec.name)} is blocked while phase=${phase}. Mutating or execution-capable tools are available only after an approved Plan enters BUILDING/VERIFYING/REVISING.${shellHint}`,
   }
 }
 
