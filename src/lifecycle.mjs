@@ -3,8 +3,9 @@ const ALLOWED = Object.freeze({
   CONTRACTED: new Set(['BRIEFED']),
   BRIEFED: new Set(['PLANNING']),
   PLANNING: new Set(['AWAITING_PLAN_REVIEW']),
-  AWAITING_PLAN_REVIEW: new Set(['PLAN_APPROVED', 'PLANNING']),
+  AWAITING_PLAN_REVIEW: new Set(['PLAN_APPROVED', 'PLANNING', 'PLAN_REJECTED']),
   PLAN_APPROVED: new Set(['BUILDING']),
+  PLAN_REJECTED: new Set(),
   BUILDING: new Set(['VERIFYING']),
   VERIFYING: new Set(['DELIVERING', 'REVISING']),
   DELIVERING: new Set(['AWAITING_GATE']),
@@ -98,6 +99,13 @@ export function reduceLearningEvent(state, event) {
           ...state,
           phase: transition(state.phase, 'PLANNING'),
           plan_ref: null,
+          plan_review_attempts: state.plan_review_attempts + 1,
+        })
+      }
+      if (payload.decision === 'REJECT') {
+        return freezeState({
+          ...state,
+          phase: transition(state.phase, 'PLAN_REJECTED'),
           plan_review_attempts: state.plan_review_attempts + 1,
         })
       }
