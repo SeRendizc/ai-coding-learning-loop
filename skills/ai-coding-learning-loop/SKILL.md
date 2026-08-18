@@ -22,20 +22,31 @@ Treat delivery and learning as separate outcomes. Never claim that passing tests
 
 ## Run each work unit
 
-Follow this order:
+The successful path is:
 
 `DISCOVER → CONTRACTED → BRIEFED → PLANNING → AWAITING_PLAN_REVIEW → PLAN_APPROVED → BUILDING → VERIFYING → DELIVERING → AWAITING_GATE → CLOSED`
+
+Plan review also has two non-approval outcomes:
+
+- `AWAITING_PLAN_REVIEW --REVISE--> PLANNING`
+- `AWAITING_PLAN_REVIEW --REJECT--> PLAN_REJECTED`
+
+`PLAN_REJECTED` is a paused terminal outcome for the current work unit. Do not silently restart or invent a replacement Plan after rejection.
 
 - On every resume, call `ownership_lifecycle` with `action: "status"` first. Use the returned `context` for learning targets, work units, mode, learner profile, Gate policy, latest Plan, and any legacy engineering scope. Do not search the private evidence directory to rediscover the contract.
 - Before Planning, record a planning Brief: explain the learning target, ownership boundary, relevant workspace context, discovery constraints, and verification expectations. Do not pretend a concrete coding scope has already been approved.
 - In Planning, determine the proposed `engineering_task`. Preserve an existing direct user coding request when one exists; otherwise propose a bounded task that fits the learning target and current workspace. Then produce implementation steps, verification, learning anchors, and known risks.
 - After `ownership_lifecycle` `start_plan`, use **`ownership_submit_plan`** for the engineering-scope and Plan handoff. Supply exactly the five semantic fields it requests: `engineering_task`, `implementation_steps`, `verification_plan`, `learning_anchors`, and `known_risks`. Do not invent or repeat `schema_version` or `work_unit_id`; the runtime derives them from the current durable Planning state.
-- `ownership_submit_plan` opens the native Harness Plan Review UI using the exact live calling agent and shows the proposed coding task plus full Plan. Do not use the legacy `ownership_lifecycle submit_plan` action in a new model turn.
+- `ownership_submit_plan` opens the Harness Plan Review UI using the exact live calling agent and shows the proposed coding task plus full Plan. Do not use the legacy `ownership_lifecycle submit_plan` action in a new model turn.
+- Harness rc.7 exposes its native Plan card as a binary approve/refuse decision plus a fixed `Chat about it / 去聊天里说` cancellation button. The Ownership adapter treats that cancellation as a request to open a second structured **Plan revision feedback** question. Do not tell the user to leave the review and type feedback in ordinary chat when this native adapter is active.
+- Treat the returned review result as authoritative and exhaustive:
+  - `decision: "APPROVE"`: the Plan is approved. Call `start_work` immediately before implementation begins.
+  - `decision: "REVISE"`: valid only when `feedback` is non-empty and came from the user. Revise only from that feedback, stay in Planning, and submit the updated Plan again. Do not implement.
+  - `decision: "REJECT"`: the user rejected the Plan. Stop immediately in `PLAN_REJECTED`. Do not generate another Plan, call `start_plan`, or continue implementation unless a future product flow explicitly reopens the work unit.
+  - `decision: null`: no review decision was completed. Stay in `AWAITING_PLAN_REVIEW`, stop, and wait. Do not infer approval or revision intent.
 - When `plan_review.channel` is `native-user-question`, do not duplicate the same approval request in ordinary chat.
-- If `ownership_submit_plan` returns `plan_review.channel: "direct-message-fallback"`, no interaction provider exists. Show the same coding task and Plan in chat and stop in `AWAITING_PLAN_REVIEW`; only a new direct user message may then be recorded with `record_plan_review`.
-- If native Plan Review returns `REVISE`, stay in Planning, use transient feedback when present, revise the task or Plan, and submit it again. Do not implement.
-- If Plan Review returns `APPROVE`, the approved Plan becomes the authoritative engineering scope. Call `start_work` immediately before implementation begins. Never edit implementation files or execute side-effectful tools before durable state enters an implementation phase.
-- The host plugin also enforces this boundary at `tools/pre-execute`: once a contract exists, non-read-only tools are denied outside `BUILDING`, `VERIFYING`, and `REVISING`. Do not attempt to work around that policy.
+- Use `ownership_lifecycle record_plan_review` **only** when `ownership_submit_plan` explicitly returns `plan_review.channel: "direct-message-fallback"`, which means no interaction provider exists. Show the same coding task and Plan in chat and stop; only a new direct user message may then be recorded. Never use this fallback to recover from a native Web cancellation.
+- The host plugin enforces the Plan-before-Build boundary at `tools/pre-execute`: once a contract exists, non-read-only tools are denied outside `BUILDING`, `VERIFYING`, and `REVISING`. Do not attempt to work around that policy.
 - Respect the implementation owner. For a human-owned core method, guide and review instead of writing it.
 - Verify engineering evidence before Deliver. Failed verification returns to implementation.
 - Teach the verified result during Deliver. Do not reduce Deliver to a completion summary.
@@ -49,8 +60,8 @@ After `/ownership start` is accepted:
 2. `ownership_lifecycle brief` with the contracted `work_unit_id` and planning-brief topics just established;
 3. `ownership_lifecycle start_plan` with that work unit;
 4. call `ownership_submit_plan` once with the complete semantic Plan fields: `engineering_task`, `implementation_steps`, `verification_plan`, `learning_anchors`, and `known_risks`; the runtime materializes `schema_version` and current `work_unit_id`;
-5. honor the Plan Review result; use `ownership_lifecycle record_plan_review` only for the explicit direct-message fallback path;
-6. call `ownership_lifecycle start_work` only after Plan approval and immediately before implementation begins;
+5. honor exactly one of `APPROVE / REVISE / REJECT / null` as defined above; use `ownership_lifecycle record_plan_review` only for explicit direct-message fallback;
+6. call `ownership_lifecycle start_work` only after `APPROVE` and immediately before implementation begins;
 7. `submit_implementation` with a stable implementation digest or commit ref;
 8. `record_verification` with `PASS` or `FAIL`, the same implementation ref, and concrete test/check refs;
 9. after `FAIL`, use `start_revision` before changing the implementation;
@@ -100,7 +111,7 @@ Read [evidence-policy.md](references/evidence-policy.md) before writing reports 
 
 - Treat original events as facts; treat snapshots, traces, and reports as derived views.
 - Store metadata, references, result codes, and digests by default—not source, full tool arguments/results, secrets, Gate free-text answers, or Plan revision prose.
-- Native Plan Review may return revision prose transiently to the current model turn, but durable evidence records only the decision and Plan reference.
+- Native Plan revision feedback is transient to the current model turn; durable evidence records only the review decision and Plan reference.
 - If implementation changes after Deliver, invalidate its reference, verify again, create a new Deliver, then reopen Gate.
 - Keep tool authorization separate from delegation and learning status. The host pre-execute policy enforces only the lifecycle write boundary; normal Harness approvals and sandbox policy still apply.
 - Use the host runtime for execution, approval, persistence, and recovery. Do not create a second agent loop.
