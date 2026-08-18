@@ -38,6 +38,25 @@ const skill = await ctx.skills.get('ai-coding-learning-loop')
 if (!commandNames.includes('ownership')) throw new Error('Harness did not register /ownership')
 if (skill?.source !== 'runtime') throw new Error('Harness did not load the packaged runtime Skill')
 
+const presentedTools = ctx.tools.schemas()
+const planSchema = presentedTools.find(tool => tool.name === 'ownership_submit_plan')
+const lifecycleSchema = presentedTools.find(tool => tool.name === 'ownership_lifecycle')
+if (planSchema === undefined) throw new Error('Harness did not present ownership_submit_plan')
+if (lifecycleSchema === undefined) throw new Error('Harness did not present ownership_lifecycle')
+const expectedPlanFields = [
+  'engineering_task', 'implementation_steps', 'verification_plan', 'learning_anchors', 'known_risks',
+]
+if (JSON.stringify(planSchema.parameters?.required) !== JSON.stringify(expectedPlanFields)) {
+  throw new Error(`dedicated Plan schema lost required semantic fields: ${JSON.stringify(planSchema.parameters)}`)
+}
+if (planSchema.parameters?.properties?.schema_version !== undefined
+  || planSchema.parameters?.properties?.work_unit_id !== undefined) {
+  throw new Error('dedicated Plan schema leaked runtime-owned identity back to the model')
+}
+if (lifecycleSchema.parameters?.properties?.action?.enum?.includes('submit_plan')) {
+  throw new Error('legacy lifecycle submit_plan is still advertised to the model')
+}
+
 ctx.tools.register(toolsModule.defineTool({
   name: 's4_live_probe',
   description: 'Exercise the authoritative Harness tool lifecycle for S4 live compatibility evidence.',
@@ -95,6 +114,8 @@ const record = async arguments_ => {
 const implementationRef = 'sha256:s4-live-implementation'
 await record({ action: 'brief', work_unit_id: 'live-smoke', topics: ['Harness lifecycle boundary'] })
 await record({ action: 'start_plan', work_unit_id: 'live-smoke' })
+// Hidden legacy path is exercised only to preserve deterministic old evidence
+// and provider-free compatibility. New model turns see ownership_submit_plan.
 await record({ action: 'submit_plan', plan_record: {
   schema_version: 'ai-coding-learning-loop.plan.v1',
   work_unit_id: 'live-smoke',
@@ -169,6 +190,7 @@ const cleanup = {
   command_removed: !ctx.commands.list(agentView).some(command => command.name === 'ownership'),
   skill_removed: await ctx.skills.get('ai-coding-learning-loop') === undefined,
   lifecycle_tool_removed: ctx.tools.get('ownership_lifecycle') === undefined,
+  plan_tool_removed: ctx.tools.get('ownership_submit_plan') === undefined,
 }
 if (Object.values(cleanup).some(value => value !== true)) throw new Error('Harness fiber disposal left plugin state behind')
 
@@ -189,6 +211,8 @@ const report = {
     packaged_skill_registered: true,
     real_tool_pre_execute_and_result: true,
     lifecycle_tool_registered: true,
+    dedicated_plan_tool_presented: true,
+    runtime_owned_plan_identity_hidden: true,
     durable_lifecycle_closed: true,
     durable_contract_recovered: true,
     fiber_cleanup: cleanup,
