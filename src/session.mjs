@@ -179,9 +179,16 @@ export class LearningSession {
     })
   }
 
-  async reopenPlan(taskId, currentUserMessageCount) {
-    if (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount < 1) {
+  async reopenPlan(taskId, currentUserMessageCount = null, reopenSource = 'direct-message') {
+    if (!['direct-message', 'user-question'].includes(reopenSource)) {
+      throw new TypeError('Plan reopen source must be direct-message or user-question')
+    }
+    if (reopenSource === 'direct-message'
+      && (!Number.isSafeInteger(currentUserMessageCount) || currentUserMessageCount < 1)) {
       throw new TypeError('currentUserMessageCount must include a direct user replan request')
+    }
+    if (reopenSource === 'user-question' && currentUserMessageCount !== null) {
+      throw new TypeError('user-question Plan reopen does not use direct user message counts')
     }
     const { events, state } = await this.#contractAndState(taskId)
     if (state.phase !== 'PLAN_REJECTED') throw new Error('Rejected Plan is not currently reopenable')
@@ -190,7 +197,7 @@ export class LearningSession {
     const submitted = latest(events, 'plan.submitted')
     const boundary = reviewed.payload.user_message_count_at_review
       ?? submitted?.payload?.user_message_count_at_submit
-    if (boundary !== undefined && currentUserMessageCount <= boundary) {
+    if (reopenSource === 'direct-message' && boundary !== undefined && currentUserMessageCount <= boundary) {
       throw new Error('Plan replan requires a new direct user message after rejection')
     }
     return this.#appendProjected({
@@ -199,7 +206,10 @@ export class LearningSession {
       actor: 'user',
       work_unit_id: reviewed.work_unit_id,
       refs: [reviewed.payload.plan_ref],
-      payload: { previous_plan_ref: reviewed.payload.plan_ref },
+      payload: {
+        previous_plan_ref: reviewed.payload.plan_ref,
+        reopen_source: reopenSource,
+      },
     })
   }
 
