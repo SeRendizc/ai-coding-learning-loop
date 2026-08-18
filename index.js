@@ -349,6 +349,29 @@ function planReviewCopy(locale) {
   }
 }
 
+function rejectedPlanCopy(locale) {
+  if (locale === 'zh-CN') return {
+    header: 'Plan 已拒绝',
+    question: '当前 Plan 已停止。你希望接下来怎么处理？如有具体新任务或修改要求，也可以直接填写自定义答案。',
+    newTask: '重新规划：换一个任务',
+    newTaskDescription: '保留学习合同，放弃当前 Plan，重新提出一个不同的编码任务。',
+    reviseDirection: '重新规划：保留方向',
+    reviseDirectionDescription: '保留当前任务方向，但重新设计范围或实现方案。',
+    stayRejected: '保持拒绝',
+    stayRejectedDescription: '继续停在 PLAN_REJECTED，不生成新 Plan。',
+  }
+  return {
+    header: 'Plan rejected',
+    question: 'The current Plan is stopped. What should happen next? You can also type a concrete new task or revision request as a custom answer.',
+    newTask: 'Replan: change task',
+    newTaskDescription: 'Keep the Learning Contract, abandon this Plan, and propose a different coding task.',
+    reviseDirection: 'Replan: keep direction',
+    reviseDirectionDescription: 'Keep the task direction but redesign the scope or implementation approach.',
+    stayRejected: 'Keep rejected',
+    stayRejectedDescription: 'Remain in PLAN_REJECTED and do not generate a new Plan.',
+  }
+}
+
 async function requestPlanRevisionFeedback(userQuestions, exec, copy) {
   try {
     const response = await userQuestions.ask({
@@ -404,6 +427,53 @@ async function requestNativePlanReview(userQuestions, exec, plan, locale, { lega
         : { decision: null, feedback: null, status: 'awaiting-user' }
     }
     if (legacyCallerFallback && error?.code === 'CALLER_NOT_LIVE') return null
+    throw error
+  }
+}
+
+async function requestRejectedPlanReopen(userQuestions, exec, locale) {
+  if (!userQuestions || typeof userQuestions.ask !== 'function') {
+    return { channel: 'direct-message-fallback', decision: null, mode: null, feedback: null }
+  }
+  const copy = rejectedPlanCopy(locale)
+  try {
+    const response = await userQuestions.ask({
+      ...(exec.agent === undefined ? {} : { agent: exec.agent }),
+      signal: exec.signal,
+      questions: [{
+        id: 'ownership-plan-reopen',
+        header: copy.header,
+        question: copy.question,
+        options: [
+          { label: copy.newTask, description: copy.newTaskDescription },
+          { label: copy.reviseDirection, description: copy.reviseDirectionDescription },
+          { label: copy.stayRejected, description: copy.stayRejectedDescription },
+        ],
+      }],
+    })
+    const answer = response?.answers?.find(candidate => candidate.id === 'ownership-plan-reopen')
+    const selected = answer?.selected ?? []
+    const feedback = answer?.custom?.trim() || null
+    if (selected.includes(copy.stayRejected)) {
+      return { channel: 'native-user-question', decision: null, mode: 'STAY_REJECTED', feedback: null }
+    }
+    if (selected.includes(copy.newTask)) {
+      return { channel: 'native-user-question', decision: 'REOPEN', mode: 'NEW_TASK', feedback }
+    }
+    if (selected.includes(copy.reviseDirection)) {
+      return { channel: 'native-user-question', decision: 'REOPEN', mode: 'REVISE_DIRECTION', feedback }
+    }
+    if (feedback) {
+      return { channel: 'native-user-question', decision: 'REOPEN', mode: 'CUSTOM', feedback }
+    }
+    return { channel: 'native-user-question', decision: null, mode: null, feedback: null }
+  } catch (error) {
+    if (error?.code === 'NO_PROVIDER') {
+      return { channel: 'direct-message-fallback', decision: null, mode: null, feedback: null }
+    }
+    if (error?.code === 'ASK_CANCELLED') {
+      return { channel: 'native-user-question', decision: null, mode: null, feedback: null }
+    }
     throw error
   }
 }
@@ -472,7 +542,7 @@ async function persistPlanAndReview(session, interaction, taskId, plan, exec, op
 function planSubmissionTool(session, interaction) {
   return {
     name: 'ownership_submit_plan',
-    description: 'Submit the complete proposed coding task and Plan for user review. Call only while Planning. Runtime supplies schema_version and active work_unit_id. APPROVE authorizes the later Build phase; REVISE requires explicit user feedback; REJECT stops the current Plan and forbids automatic replanning; a later explicit user replan request must use ownership_lifecycle reopen_plan before a fresh submission.',
+    description: 'Submit the complete proposed coding task and Plan for user review. Call only while Planning. Runtime supplies schema_version and active work_unit_id. APPROVE authorizes the later Build phase; REVISE requires explicit user feedback; REJECT stops the current Plan and forbids automatic replanning. After REJECT, use ownership_reopen_plan if you need a structured user choice, or ownership_lifecycle reopen_plan only after a fresh explicit direct chat request.',
     parameters: planSubmissionParameters(),
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -492,10 +562,47 @@ function planSubmissionTool(session, interaction) {
   }
 }
 
+function planReopenTool(session, interaction) {
+  return {
+    name: 'ownership_reopen_plan',
+    description: 'From PLAN_REJECTED, ask the user through the Harness interaction provider whether to reopen Planning. This tool owns the structured human confirmation and records a reopen only after an affirmative answer. Use it instead of generic ask_user_question when the user has not already sent a direct replan request.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {},
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(_args, exec) {
+      const taskId = taskIdForExecution(exec)
+      const context = await session.context(taskId)
+      if (context.state.phase !== 'PLAN_REJECTED') {
+        throw new Error('ownership_reopen_plan requires PLAN_REJECTED')
+      }
+      const replan = await requestRejectedPlanReopen(
+        interaction.userQuestions,
+        exec,
+        context.contract.learner_profile?.locale,
+      )
+      if (replan.decision === 'REOPEN') {
+        await session.reopenPlan(taskId, null, 'user-question')
+      }
+      return {
+        task_id: taskId,
+        action: 'reopen_plan',
+        state: await session.state(taskId),
+        replan,
+      }
+    },
+  }
+}
+
 function lifecycleTool(session, interaction) {
   return {
     name: 'ownership_lifecycle',
-    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use ownership_submit_plan for Plan handoff. reopen_plan is the only legal escape from PLAN_REJECTED and requires a fresh explicit direct-user replan request.',
+    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use ownership_submit_plan for Plan handoff. lifecycle reopen_plan is the direct-chat recovery path from PLAN_REJECTED and requires a fresh explicit direct-user replan request; use ownership_reopen_plan when structured UI confirmation is needed.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -576,7 +683,7 @@ function lifecycleTool(session, interaction) {
           break
         case 'reopen_plan':
           assertExplicitReplanRequest(exec)
-          await session.reopenPlan(taskId, currentUserMessageCount(exec))
+          await session.reopenPlan(taskId, currentUserMessageCount(exec), 'direct-message')
           break
         case 'submit_plan': {
           const plan = requiredObject(input.plan_record, 'plan_record')
@@ -655,6 +762,7 @@ function lifecycleTool(session, interaction) {
 function installLifecycleTool(ctx, session) {
   const interaction = { userQuestions: null }
   ctx.effect(() => ctx.tools.register(planSubmissionTool(session, interaction)))
+  ctx.effect(() => ctx.tools.register(planReopenTool(session, interaction)))
   ctx.effect(() => ctx.tools.register(lifecycleTool(session, interaction)))
   if (typeof ctx.inject !== 'function') return
   ctx.inject(['userQuestions'], questionCtx => {
@@ -669,7 +777,7 @@ function installLifecycleTool(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:lifecycle',
       order: 117,
-      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. During CONTRACTED/BRIEFED/PLANNING/AWAITING_PLAN_REVIEW/PLAN_REJECTED, workspace discovery must use the actual read-only glob, grep, read, lsp, search, or view tools directly; never use pwsh or bash as a surrogate for listing or searching. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks; Runtime supplies schema version and active work-unit identity. Honor the returned Plan decision exactly: APPROVE permits start_work; REVISE is valid only with explicit user feedback and must revise only from that feedback; REJECT means stop immediately in PLAN_REJECTED and never auto-replan. If and only if a later direct user message explicitly asks to replan, change the task, or replace the rejected Plan, call ownership_lifecycle reopen_plan; do not call start_plan from PLAN_REJECTED. A null decision means stop and wait. Use ownership_lifecycle record_plan_review only when ownership_submit_plan explicitly returns channel=direct-message-fallback. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. During CONTRACTED/BRIEFED/PLANNING/AWAITING_PLAN_REVIEW/PLAN_REJECTED, workspace discovery must use the actual read-only glob, grep, read, lsp, search, or view tools directly; never use pwsh or bash as a surrogate for listing or searching. ask_user_question is non-mutating and may be used for ordinary clarification, but its answer is an ordinary tool result and is not direct-chat evidence for lifecycle reopen. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks; Runtime supplies schema version and active work-unit identity. Honor the returned Plan decision exactly: APPROVE permits start_work; REVISE is valid only with explicit user feedback and must revise only from that feedback; REJECT means stop immediately in PLAN_REJECTED and never auto-replan. In PLAN_REJECTED, if the user has already sent a fresh direct chat message explicitly asking to replan/change the task, call ownership_lifecycle reopen_plan. If you need to ask the user what to do after rejection, call ownership_reopen_plan instead of generic ask_user_question; only that Runtime-owned interaction may reopen from a structured UI answer. A null/no-reopen result means stop and wait. Use ownership_lifecycle record_plan_review only when ownership_submit_plan explicitly returns channel=direct-message-fallback. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
     }))
   })
 }
@@ -692,8 +800,8 @@ export function getOwnershipController(ctx) {
 
 function continuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。工作区发现只能直接使用真正的 glob / grep / read / lsp 等只读工具，不要用 pwsh/bash 模拟列目录或搜索。如果用户此前已经提出明确 coding request，就原样保留；否则围绕学习目标提出一个边界清晰的任务。记录 Brief 后调用 ownership_lifecycle start_plan，再只调用一次 ownership_submit_plan；schema_version 和 work_unit_id 由 Runtime 自动补齐。APPROVE 才能 start_work；REVISE 必须有用户真实修改意见；REJECT 立即停止且不能自动重写。只有后续新的用户消息明确要求重新规划或换任务时，才允许调用 reopen_plan。未经用户批准 Plan，禁止任何实现或写入操作。'
-    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop by calling ownership_lifecycle status first. For workspace discovery, call real read-only glob, grep, read, lsp, search, or view tools directly; never emulate discovery with pwsh/bash. Preserve an existing concrete coding request, otherwise propose a bounded task. Record the Brief, call start_plan, then call ownership_submit_plan exactly once; Runtime supplies schema_version and work_unit_id. APPROVE permits start_work; REVISE requires explicit user feedback; REJECT stops and must not auto-replan. Only a later new direct user message explicitly asking to replan or change the task permits reopen_plan. Do not implement before approval.'
+    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。工作区发现只能直接使用真正的 glob / grep / read / lsp 等只读工具，不要用 pwsh/bash 模拟列目录或搜索。如果用户此前已经提出明确 coding request，就原样保留；否则围绕学习目标提出一个边界清晰的任务。记录 Brief 后调用 ownership_lifecycle start_plan，再只调用一次 ownership_submit_plan；schema_version 和 work_unit_id 由 Runtime 自动补齐。APPROVE 才能 start_work；REVISE 必须有用户真实修改意见；REJECT 立即停止且不能自动重写。若拒绝后需要询问用户是否重新规划，使用 ownership_reopen_plan；只有用户已经在普通聊天里明确要求重新规划/换任务时，才使用 ownership_lifecycle reopen_plan。未经用户批准 Plan，禁止任何实现或写入操作。'
+    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop by calling ownership_lifecycle status first. For workspace discovery, call real read-only glob, grep, read, lsp, search, or view tools directly; never emulate discovery with pwsh/bash. Preserve an existing concrete coding request, otherwise propose a bounded task. Record the Brief, call start_plan, then call ownership_submit_plan exactly once; Runtime supplies schema_version and work_unit_id. APPROVE permits start_work; REVISE requires explicit user feedback; REJECT stops and must not auto-replan. After rejection, use ownership_reopen_plan to ask the user through structured UI; use ownership_lifecycle reopen_plan only when a fresh direct chat message already explicitly asks to replan/change the task. Do not implement before approval.'
   return {
     id: `ownership-followup-${randomUUID()}`,
     role: 'user',
@@ -704,8 +812,8 @@ function continuationMessage(locale) {
 
 function resumeContinuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '这是已存在 Learning Contract 的恢复执行，不要重新创建 Contract，也不要盲目重放已经完成的 lifecycle 动作。先调用 ownership_lifecycle status，以持久化 phase 为唯一恢复事实：CONTRACTED 才 brief；BRIEFED 才 start_plan；PLANNING 直接完成/重提 Plan；AWAITING_PLAN_REVIEW 停下等待审核；PLAN_APPROVED 才 start_work；PLAN_REJECTED 默认停止，只有当前最新真人消息明确要求重新规划、换任务或替换方案时才调用 reopen_plan，绝不能从 PLAN_REJECTED 调 start_plan；后续 BUILDING/VERIFYING/REVISING/DELIVERING/AWAITING_GATE 按当前 phase 的合法下一步继续。Planning 期间只能直接使用真正的 glob / grep / read / lsp 等只读工具，禁止用 pwsh/bash 模拟发现。'
-    : 'Resume the already-durable Learning Contract; do not recreate it and do not blindly replay completed lifecycle actions. Call ownership_lifecycle status first and resume only from its durable phase. CONTRACTED may brief; BRIEFED may start_plan; PLANNING may submit/revise; AWAITING_PLAN_REVIEW must wait; PLAN_APPROVED may start_work; PLAN_REJECTED must stop unless the latest new direct user message explicitly asks to replan/change the task, in which case call reopen_plan (never start_plan directly). Continue later phases only by their legal next action. During Planning use real read-only glob/grep/read/lsp/search/view tools, never pwsh/bash as discovery surrogates.'
+    ? '这是已存在 Learning Contract 的恢复执行，不要重新创建 Contract，也不要盲目重放已经完成的 lifecycle 动作。先调用 ownership_lifecycle status，以持久化 phase 为唯一恢复事实：CONTRACTED 才 brief；BRIEFED 才 start_plan；PLANNING 直接完成/重提 Plan；AWAITING_PLAN_REVIEW 停下等待审核；PLAN_APPROVED 才 start_work；PLAN_REJECTED 默认停止。如果当前最新真人聊天消息已经明确要求重新规划、换任务或替换方案，调用 ownership_lifecycle reopen_plan；如果没有这样的真人消息但需要询问用户下一步，调用 ownership_reopen_plan，由 Runtime 弹结构化问题并验证回答，绝不能从 PLAN_REJECTED 调 start_plan。后续 BUILDING/VERIFYING/REVISING/DELIVERING/AWAITING_GATE 按当前 phase 的合法下一步继续。Planning 期间只能直接使用真正的 glob / grep / read / lsp 等只读工具，禁止用 pwsh/bash 模拟发现。'
+    : 'Resume the already-durable Learning Contract; do not recreate it and do not blindly replay completed lifecycle actions. Call ownership_lifecycle status first and resume only from its durable phase. CONTRACTED may brief; BRIEFED may start_plan; PLANNING may submit/revise; AWAITING_PLAN_REVIEW must wait; PLAN_APPROVED may start_work; PLAN_REJECTED stops by default. If the latest fresh direct chat message explicitly asks to replan/change the task, call ownership_lifecycle reopen_plan. Otherwise, if you need to ask what to do next, call ownership_reopen_plan so Runtime owns the structured human confirmation; never call start_plan directly from PLAN_REJECTED. Continue later phases only by their legal next action. During Planning use real read-only glob/grep/read/lsp/search/view tools, never pwsh/bash as discovery surrogates.'
   return {
     id: `ownership-resume-${randomUUID()}`,
     role: 'user',
@@ -883,7 +991,10 @@ function installBundledSkill(ctx) {
 
 function isPlanningSafeTool(nameValue) {
   const tool = String(nameValue).toLowerCase()
-  if (tool === 'ownership_lifecycle' || tool === 'ownership_submit_plan') return true
+  if (tool === 'ownership_lifecycle'
+    || tool === 'ownership_submit_plan'
+    || tool === 'ownership_reopen_plan'
+    || tool === 'ask_user_question') return true
   return /(^|[._/-])(read|view|inspect|glob|grep|search|find|list|ls|lsp|web|fetch|skill|todo|goal)([._/-]|$)/u.test(tool)
 }
 
