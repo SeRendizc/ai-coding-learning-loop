@@ -86,7 +86,7 @@ function responsibilityAnswers({ mode = 'DELEGATED', expertise = 'PRACTITIONER',
   ] }
 }
 
-function confirmation(selected = 'Accept Learning Contract') {
+function confirmation(selected = 'Confirm & Generate Plan') {
   return { answers: [{ id: 'accept-learning-contract', selected: [selected] }] }
 }
 
@@ -95,7 +95,7 @@ function contractAnswers(options = {}) {
   return [
     learningTargetAnswer(options),
     responsibilityAnswers({ ...options, locale }),
-    confirmation(locale === 'zh-CN' ? '接受学习合同' : 'Accept Learning Contract'),
+    confirmation(locale === 'zh-CN' ? '确认并生成 Plan' : 'Confirm & Generate Plan'),
   ]
 }
 
@@ -173,11 +173,12 @@ test('/ownership start asks one free-text learning target and keeps coding scope
   assert.deepEqual(ctx.questionRequests[1].questions.map(question => question.id), ['delegation-mode', 'learner-expertise'])
   const contractQuestion = ctx.questionRequests[2].questions[0]
   assert.equal(contractQuestion.intent, undefined)
-  assert.match(contractQuestion.detail, /Learning Contract/)
-  assert.match(contractQuestion.detail, /concrete coding task.*separate Plan/i)
-  assert.doesNotMatch(contractQuestion.detail, /##|\*\*|^- /m)
-  assert.doesNotMatch(contractQuestion.detail, /schema_version/)
-  assert.doesNotMatch(contractQuestion.detail, /task_id/)
+  assert.equal(contractQuestion.detail, undefined)
+  assert.match(contractQuestion.question, /Target “understand event replay”/)
+  assert.match(contractQuestion.question, /Fully delegated \(DELEGATED\)/)
+  assert.match(contractQuestion.question, /up to 3 transfer attempts/)
+  assert.match(contractQuestion.options[0].description, /implementation stays blocked until Plan approval/i)
+  assert.doesNotMatch(contractQuestion.question, /schema_version|task_id/)
 })
 
 test('/ownership localizes selections after reading a Chinese learning target', async t => {
@@ -196,12 +197,26 @@ test('/ownership localizes selections after reading a Chinese learning target', 
   const first = ctx.questionRequests[0].questions
   assert.deepEqual(first.map(question => question.id), ['learning-target'])
   const second = ctx.questionRequests[1].questions
-  assert.deepEqual(second.find(question => question.id === 'delegation-mode').options.map(option => option.label), [
+  const modeQuestion = second.find(question => question.id === 'delegation-mode')
+  assert.deepEqual(modeQuestion.options.map(option => option.label), [
     '教学模式（GUIDED）', '主创模式（HUMAN_LED）', '领航模式（AI_LED）', '委托模式（DELEGATED）',
+  ])
+  assert.deepEqual(modeQuestion.options.map(option => option.description), [
+    'AI 负责教学、规划和审查，不写实现；核心设计与代码由你完成。',
+    'AI 搭脚手架与测试；核心方法和数据流由你完成。',
+    'AI 负责大部分实现与验证；你负责预测、审查并亲手修改一个关键点。',
+    'AI 完成全部实现、验证和教学；你负责理解、迁移并通过 Gate。',
   ])
   assert.deepEqual(second.find(question => question.id === 'learner-expertise').options.map(option => option.label), [
     '入门（BEGINNER）', '熟练（PRACTITIONER）', '专家（EXPERT）',
   ])
+  const contractQuestion = ctx.questionRequests[2].questions[0]
+  assert.equal(contractQuestion.header, '确认学习设置')
+  assert.equal(contractQuestion.detail, undefined)
+  assert.match(contractQuestion.question, /目标「学会设计可靠重试」/)
+  assert.match(contractQuestion.question, /领航模式（AI_LED）/)
+  assert.match(contractQuestion.question, /熟练（PRACTITIONER）/)
+  assert.equal(contractQuestion.options[0].label, '确认并生成 Plan')
   const events = await getOwnershipController(ctx).ledger.read('session-labels')
   assert.deepEqual(events[0].payload.contract.learner_profile, { expertise: 'PRACTITIONER', locale: 'zh-CN' })
 })
