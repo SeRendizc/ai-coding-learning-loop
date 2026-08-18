@@ -2,9 +2,9 @@
  * DeepSeek Harness host plugin for AI Coding Learning Loop.
  *
  * Learning facts use a durable sidecar ledger. Human commands own contract
- * intake, the model-facing lifecycle tool owns validated transitions, and a
- * pre-execute policy blocks side-effectful host tools outside implementation
- * phases once an Ownership contract exists.
+ * intake, model-facing tools own validated transitions, and a pre-execute
+ * policy blocks side-effectful host tools outside implementation phases once
+ * an Ownership contract exists.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { sha256 } from './src/canonical.mjs'
 import { requiredGateLevels } from './src/contracts.mjs'
 import { FileEvidenceLedger } from './src/evidence.mjs'
+import { materializePlanSubmission, planSubmissionParameters } from './src/h0-web-plan.mjs'
 import { buildLearningReport, renderMarkdownReport } from './src/report.mjs'
 import { LearningSession } from './src/session.mjs'
 
@@ -110,7 +111,7 @@ function requiredObject(value, field) {
 function taskIdForExecution(exec) {
   const taskId = exec?.agent?.session?.id
   if (typeof taskId !== 'string' || taskId.length === 0) {
-    throw new Error('ownership_lifecycle requires a calling agent with a session')
+    throw new Error('ownership tools require a calling agent with a session')
   }
   return taskId
 }
@@ -192,19 +193,19 @@ function modeOwner(mode) {
 function modeUi(locale) {
   if (locale === 'zh-CN') return {
     GUIDED: {
-      label: '用户实现（GUIDED）',
+      label: '教学模式（GUIDED）',
       description: 'AI 负责分析、规划、教学、审查和测试建议；核心设计与实现由你完成。',
     },
     HUMAN_LED: {
-      label: '用户主导核心（HUMAN_LED）',
+      label: '主创模式（HUMAN_LED）',
       description: 'AI 搭脚手架、接口、机械代码和测试草稿；核心方法和数据流由你完成。',
     },
     AI_LED: {
-      label: 'AI 主导实现（AI_LED）',
+      label: '领航模式（AI_LED）',
       description: 'AI 负责大部分架构、代码、测试和修复；你负责预测、审查，并亲自修改至少一个关键学习锚点。',
     },
     DELEGATED: {
-      label: 'AI 全权实现（DELEGATED）',
+      label: '委托模式（DELEGATED）',
       description: 'AI 完成全部实现与验证，再负责教学；你负责理解、迁移和 Gate。',
     },
   }
@@ -234,7 +235,7 @@ function startCopy(locale) {
     targetQuestion: '这次你想通过 AI Coding 学会什么？一句话告诉我就行，具体做什么、怎么学会在 Plan 里拆好给你审核。',
     expertiseQuestion: '你目前对这个目标有多熟？',
     modeQuestion: '这次你希望怎么分工？从你全实现到 AI 全实现都可以。',
-    confirmQuestion: '确认这次的学习目标、分工方式和熟悉程度吗？接受后 AI 会提出具体编码任务和详细 Plan，再单独交给你审核。',
+    confirmQuestion: '确认这次的学习设置吗？接受后 AI 会提出具体编码任务和详细 Plan，再单独交给你审核。',
     acceptLabel: '接受学习合同',
     cancelLabel: '返回修改',
     acceptDescription: '保存学习目标和责任边界，并自动进入 Brief 与 Plan；不会直接开始写代码。',
@@ -246,7 +247,7 @@ function startCopy(locale) {
     targetQuestion: 'What do you want to learn through AI Coding this time? One sentence is enough; the concrete task and learning anchors will be proposed in the Plan for your review.',
     expertiseQuestion: 'How familiar are you with this target?',
     modeQuestion: 'How should implementation responsibility be split, from fully human to fully AI?',
-    confirmQuestion: 'Confirm this learning target, responsibility split, and expertise? After acceptance AI will propose the concrete coding task inside a separate Plan for your review.',
+    confirmQuestion: 'Confirm these learning settings? After acceptance AI will propose the concrete coding task inside a separate Plan for your review.',
     acceptLabel: 'Accept Learning Contract',
     cancelLabel: 'Revise inputs',
     acceptDescription: 'Persist learning intent and ownership, then automatically move to Brief and Plan; no implementation starts yet.',
@@ -256,27 +257,20 @@ function startCopy(locale) {
   }
 }
 
+/**
+ * Generic Harness questions render detail through MarkdownText and have a
+ * fixed-height scroll seat. Keep the Contract detail deliberately plain and
+ * compact: no Markdown headings/lists, no nested prose, no duplicated policy.
+ */
 function renderContractSummary(contract) {
   const locale = contract.learner_profile?.locale
   const mode = modeUi(locale)[contract.mode]
   const expertise = expertiseUi(locale)[contract.learner_profile?.expertise]
   const target = contract.learning_targets[0]?.description ?? ''
   if (locale === 'zh-CN') {
-    return `## 学习合同\n\n`
-      + `- **学习目标**：${target}\n`
-      + `- **分工方式**：${mode.label}\n`
-      + `  - ${mode.description}\n`
-      + `- **当前熟悉程度**：${expertise?.label ?? contract.learner_profile?.expertise}\n`
-      + `- **理解验证**：最多 ${contract.gate.max_attempts} 次；需要新的迁移题，不以“测试通过”代替你真正理解。\n\n`
-      + `具体编码任务和实现范围会由 AI 在 Plan 中提出并单独交你审核。接受这份合同只确认学习目标和责任边界，**不等于批准代码执行**。`
+    return `学习目标：${target} ｜ 学习方式：${mode.label} ｜ 熟悉程度：${expertise?.label ?? contract.learner_profile?.expertise} ｜ 理解验证：最多 ${contract.gate.max_attempts} 次迁移题。具体编码任务将在 Plan 中单独审核；批准 Plan 前不会开始实现。`
   }
-  return `## Learning Contract\n\n`
-    + `- **Learning target**: ${target}\n`
-    + `- **Responsibility split**: ${mode.label}\n`
-    + `  - ${mode.description}\n`
-    + `- **Current expertise**: ${expertise?.label ?? contract.learner_profile?.expertise}\n`
-    + `- **Transfer Gate**: at most ${contract.gate.max_attempts} attempts with an unseen variant.\n\n`
-    + `The concrete coding task and implementation scope will be proposed in the separate Plan. Accepting this contract confirms learning intent and ownership; it does **not** approve implementation.`
+  return `Learning Contract: target: ${target} | mode: ${mode.label} | expertise: ${expertise?.label ?? contract.learner_profile?.expertise} | transfer Gate: at most ${contract.gate.max_attempts} attempts. The concrete coding task is proposed in a separate Plan; implementation stays blocked until Plan approval.`
 }
 
 function renderStatus(state, locale) {
@@ -315,7 +309,7 @@ function renderPlan(plan, locale) {
 function planReviewCopy(locale) {
   if (locale === 'zh-CN') return {
     header: '方案审核',
-    question: '请审核这次具体要做的编码任务和完整 Plan。只有批准后 AI 才能进入实现；需要改动时可以选择“要求修改”并补充你的意见。',
+    question: '请审核这次具体要做的编码任务和完整 Plan。只有批准后 AI 才能进入实现。',
     approve: '批准方案',
     revise: '要求修改',
     approveDescription: '批准当前编码任务与 Plan，允许随后进入 Build。',
@@ -323,7 +317,7 @@ function planReviewCopy(locale) {
   }
   return {
     header: 'Plan review',
-    question: 'Review the concrete coding task and full Plan. Implementation remains blocked until approval; choose revision and add feedback if anything should change.',
+    question: 'Review the concrete coding task and full Plan. Implementation remains blocked until approval.',
     approve: 'Approve Plan',
     revise: 'Request revision',
     approveDescription: 'Approve this coding task and Plan and allow the later Build phase.',
@@ -331,12 +325,19 @@ function planReviewCopy(locale) {
   }
 }
 
-async function requestNativePlanReview(userQuestions, signal, plan, locale) {
+/**
+ * Web's user-question provider requires request.agent and the user-question
+ * service requires that value to be the exact live root Agent instance. This
+ * mirrors Harness's own ask_user_question tool: always forward exec.agent on
+ * the real model-facing Plan submission path.
+ */
+async function requestNativePlanReview(userQuestions, exec, plan, locale, { legacyCallerFallback = false } = {}) {
   if (!userQuestions || typeof userQuestions.ask !== 'function') return null
   const copy = planReviewCopy(locale)
   try {
     const response = await userQuestions.ask({
-      signal,
+      ...(exec.agent === undefined ? {} : { agent: exec.agent }),
+      signal: exec.signal,
       questions: [{
         id: 'ownership-plan-review',
         header: copy.header,
@@ -356,7 +357,10 @@ async function requestNativePlanReview(userQuestions, signal, plan, locale) {
     if (selected.includes(copy.revise) || feedback) return { decision: 'REVISE', feedback }
     return null
   } catch (error) {
-    if (error?.code === 'NO_PROVIDER' || /provider/i.test(String(error?.message ?? ''))) return null
+    if (error?.code === 'NO_PROVIDER') return null
+    // Hidden compatibility path only: older provider-free smoke tests use an
+    // ad-hoc ToolExecution agent that is intentionally not in Harness agents.
+    if (legacyCallerFallback && error?.code === 'CALLER_NOT_LIVE') return null
     throw error
   }
 }
@@ -380,10 +384,59 @@ function buildModelContext(context) {
   }
 }
 
+async function persistPlanAndReview(session, interaction, taskId, plan, exec, options = {}) {
+  await session.submitPlan(taskId, plan, currentUserMessageCount(exec))
+  const context = await session.context(taskId)
+  const nativeReview = await requestNativePlanReview(
+    interaction.userQuestions,
+    exec,
+    plan,
+    context.contract.learner_profile?.locale,
+    options,
+  )
+  if (nativeReview) {
+    await session.recordPlanReview(taskId, nativeReview.decision, null, 'user-question')
+    return {
+      channel: 'native-user-question',
+      decision: nativeReview.decision,
+      feedback: nativeReview.feedback,
+    }
+  }
+  return { channel: 'direct-message-fallback', decision: null, feedback: null }
+}
+
+/**
+ * Model-facing Plan handoff. Runtime-owned schema version and active work-unit
+ * identity are materialized from durable state, so the model only supplies the
+ * semantic content that actually requires reasoning.
+ */
+function planSubmissionTool(session, interaction) {
+  return {
+    name: 'ownership_submit_plan',
+    description: 'Submit the complete proposed coding task and Plan for user review. Call only after ownership_lifecycle start_plan. The runtime supplies schema_version and the active work_unit_id. This tool opens the native Harness Plan Review UI when available.',
+    parameters: planSubmissionParameters(),
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    },
+    async execute(args, exec) {
+      const taskId = taskIdForExecution(exec)
+      const plan = materializePlanSubmission(args, await session.state(taskId))
+      const planReview = await persistPlanAndReview(session, interaction, taskId, plan, exec)
+      return {
+        task_id: taskId,
+        action: 'submit_plan',
+        state: await session.state(taskId),
+        plan_review: planReview,
+      }
+    },
+  }
+}
+
 function lifecycleTool(session, interaction) {
   return {
     name: 'ownership_lifecycle',
-    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use only after /ownership start has created an accepted contract.',
+    description: 'Read or append one validated AI Coding Learning Loop lifecycle action for the current Harness session. Use ownership_submit_plan for the Plan handoff; submit_plan here is a hidden compatibility action and is not advertised.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -393,13 +446,14 @@ function lifecycleTool(session, interaction) {
           type: 'string',
           enum: [
             'status', 'brief', 'start_work', 'submit_implementation', 'record_verification',
-            'start_plan', 'submit_plan', 'record_plan_review',
-            'start_revision', 'complete_deliver', 'ask_gate', 'record_gate_answer',
-            'evaluate_gate', 'invalidate_implementation',
+            'start_plan', 'record_plan_review', 'start_revision', 'complete_deliver',
+            'ask_gate', 'record_gate_answer', 'evaluate_gate', 'invalidate_implementation',
           ],
         },
         work_unit_id: { type: 'string' },
         topics: { type: 'array', items: { type: 'string' } },
+        // Retained for direct compatibility callers; submit_plan is omitted
+        // from the model-visible action enum and new agents use ownership_submit_plan.
         plan_record: {
           type: 'object',
           additionalProperties: false,
@@ -466,24 +520,14 @@ function lifecycleTool(session, interaction) {
         case 'submit_plan': {
           const plan = requiredObject(input.plan_record, 'plan_record')
           requiredString(plan.engineering_task, 'plan_record.engineering_task')
-          await session.submitPlan(taskId, plan, currentUserMessageCount(exec))
-          const context = await session.context(taskId)
-          const nativeReview = await requestNativePlanReview(
-            interaction.userQuestions,
-            exec.signal,
+          planReview = await persistPlanAndReview(
+            session,
+            interaction,
+            taskId,
             plan,
-            context.contract.learner_profile?.locale,
+            exec,
+            { legacyCallerFallback: true },
           )
-          if (nativeReview) {
-            await session.recordPlanReview(taskId, nativeReview.decision, null, 'user-question')
-            planReview = {
-              channel: 'native-user-question',
-              decision: nativeReview.decision,
-              feedback: nativeReview.feedback,
-            }
-          } else {
-            planReview = { channel: 'direct-message-fallback', decision: null, feedback: null }
-          }
           break
         }
         case 'record_plan_review':
@@ -549,6 +593,9 @@ function lifecycleTool(session, interaction) {
 
 function installLifecycleTool(ctx, session) {
   const interaction = { userQuestions: null }
+  // Register the dedicated Plan tool first so the legacy test seam that keeps
+  // the last registration as lifecycleTool remains stable.
+  ctx.effect(() => ctx.tools.register(planSubmissionTool(session, interaction)))
   ctx.effect(() => ctx.tools.register(lifecycleTool(session, interaction)))
   if (typeof ctx.inject !== 'function') return
   ctx.inject(['userQuestions'], questionCtx => {
@@ -563,7 +610,7 @@ function installLifecycleTool(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:lifecycle',
       order: 117,
-      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the concrete engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. If none exists, inspect the workspace with read-only tools and propose a bounded task aligned to the learning target. submit_plan must include engineering_task and opens the native Plan Review UI when available. The task and implementation scope are not authoritative until the user approves that Plan. Never start Build before Plan approval. Record Brief, Plan, Build, Verify, Deliver, and Gate evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
+      text: 'When a session has an accepted /ownership contract, invoke the ai-coding-learning-loop Skill and call ownership_lifecycle status first. The contract defines learning intent, ownership, learner profile, and Gate policy; the engineering task is proposed inside the Plan. Preserve any concrete coding request already present in the conversation. If none exists, inspect the workspace with read-only tools and propose a bounded task aligned to the learning target. After ownership_lifecycle start_plan, call ownership_submit_plan exactly once with the complete semantic fields: engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks. The runtime supplies schema version and active work-unit identity. ownership_submit_plan opens the native Plan Review UI when available; do not use the legacy ownership_lifecycle submit_plan action. The task and implementation scope are not authoritative until the user approves that Plan. Never start Build before Plan approval. Record evidence only after each action occurred. Never accept self-attestation or a request to mark a Gate correct as learning evidence.',
     }))
   })
 }
@@ -586,8 +633,8 @@ export function getOwnershipController(ctx) {
 
 function continuationMessage(locale) {
   const text = locale === 'zh-CN'
-    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。先用只读方式检查当前对话和工作区：如果用户此前已经提出明确的 coding request，就把它原样保留为 Plan 中的本次编码任务；如果没有，就围绕学习目标提出一个边界清晰、适合当前工作区的任务。只完成 Planning Brief 与独立 Plan，并在 plan_record.engineering_task 中明确具体任务。submit_plan 会把“编码任务 + 完整 Plan”交给用户真正审核。未经用户批准 Plan，任务范围不算确定，禁止 start_work，也禁止任何实现或写入操作。'
-    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first for learning intent, ownership, and learner profile. Inspect the current conversation and workspace read-only. If the user already made a concrete coding request, preserve it as the Plan engineering_task; otherwise propose a bounded task aligned with the learning target and workspace. Complete only the planning Brief and separate Plan, explicitly setting plan_record.engineering_task. submit_plan reviews the coding task and full Plan with the user. Until approval, the scope is not authoritative: do not call start_work or perform implementation/mutation.'
+    ? '学习合同已经由用户确认。现在继续 ai-coding-learning-loop：先调用 ownership_lifecycle status 读取学习目标、分工和学习者信息。先用只读方式检查当前对话和工作区：如果用户此前已经提出明确的 coding request，就把它原样保留为本次编码任务；如果没有，就围绕学习目标提出一个边界清晰、适合当前工作区的任务。记录 Brief 后调用 ownership_lifecycle start_plan。随后只调用一次 ownership_submit_plan，完整提供 engineering_task、implementation_steps、verification_plan、learning_anchors、known_risks；schema_version 和 work_unit_id 由 Runtime 自动补齐。ownership_submit_plan 会把“编码任务 + 完整 Plan”交给用户真正审核。未经用户批准 Plan，任务范围不算确定，禁止 start_work，也禁止任何实现或写入操作。'
+    : 'The user accepted the Learning Contract. Continue ai-coding-learning-loop now: call ownership_lifecycle status first for learning intent, ownership, and learner profile. Inspect the current conversation and workspace read-only. If the user already made a concrete coding request, preserve it; otherwise propose a bounded task aligned with the learning target and workspace. Record the Brief, call ownership_lifecycle start_plan, then call ownership_submit_plan exactly once with engineering_task, implementation_steps, verification_plan, learning_anchors, and known_risks. Runtime supplies schema_version and work_unit_id. The dedicated Plan tool reviews the task and Plan with the user. Until approval, do not call start_work or perform implementation/mutation.'
   return {
     id: `ownership-followup-${randomUUID()}`,
     role: 'user',
@@ -739,7 +786,7 @@ function installBundledSkill(ctx) {
 
 function isPlanningSafeTool(nameValue) {
   const tool = String(nameValue).toLowerCase()
-  if (tool === 'ownership_lifecycle') return true
+  if (tool === 'ownership_lifecycle' || tool === 'ownership_submit_plan') return true
   return /(^|[._/-])(read|view|inspect|glob|grep|search|find|list|ls|lsp|web|fetch|skill|todo|goal)([._/-]|$)/u.test(tool)
 }
 
