@@ -15,6 +15,7 @@ class TestContext {
     this.command = null
     this.lifecycleTool = null
     this.planTool = null
+    this.reopenTool = null
     this.commands = { register: definition => { this.command = definition } }
     this.userQuestions = { ask: async request => {
       this.questionRequests.push(request)
@@ -31,6 +32,7 @@ class TestContext {
     this.tools = { register: definition => {
       if (definition.name === 'ownership_lifecycle') this.lifecycleTool = definition
       if (definition.name === 'ownership_submit_plan') this.planTool = definition
+      if (definition.name === 'ownership_reopen_plan') this.reopenTool = definition
       return () => {}
     } }
     this.systemPrompt = { section: () => () => {} }
@@ -179,7 +181,65 @@ test('PLAN_REJECTED can reopen only through fresh explicit direct-user replan ev
   const events = await getOwnershipController(ctx).ledger.read('session-explicit-replan')
   assert.equal(events.filter(event => event.type === 'plan.submitted').length, 2)
   assert.equal(events.filter(event => event.type === 'plan.reopened').length, 1)
+  assert.equal(events.find(event => event.type === 'plan.reopened').payload.reopen_source, 'direct-message')
   assert.equal(JSON.stringify(events).includes('做底层 Agent Runtime 执行引擎'), false)
+})
+
+test('PLAN_REJECTED structured UI can reopen without pretending the answer is a direct chat message', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'ownership-replan-question-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const ctx = new TestContext([
+    ...contractAnswers(),
+    { answers: [{ id: 'ownership-plan-review', selected: ['拒绝方案'] }] },
+    { answers: [{
+      id: 'ownership-plan-reopen',
+      selected: ['重新规划：换一个任务'],
+      custom: '换成实现一个最小 durable tool dispatcher',
+    }] },
+  ])
+  apply(ctx, { evidenceRoot: root })
+  const session = harnessSession('session-structured-replan')
+  const agent = { session }
+  const exec = { agent, signal: new AbortController().signal }
+
+  await ctx.command.handler({ rawInput: 'start', ...exec })
+  await ctx.lifecycleTool.execute({ action: 'brief', work_unit_id: 'task-main', topics: ['agent infra'] }, exec)
+  await ctx.lifecycleTool.execute({ action: 'start_plan', work_unit_id: 'task-main' }, exec)
+  const rejected = await ctx.planTool.execute(firstPlan, exec)
+  assert.equal(rejected.state.phase, 'PLAN_REJECTED')
+  assert.equal(session.messages.length, 0)
+
+  const pre = ctx.listeners.get('tools/pre-execute')
+  let genericQuestionDownstream = 0
+  const genericQuestionDecision = await pre({
+    callId: 'ask-safe',
+    name: 'ask_user_question',
+    arguments: { questions: [] },
+    agent,
+  }, async () => {
+    genericQuestionDownstream += 1
+    return { kind: 'allow' }
+  })
+  assert.deepEqual(genericQuestionDecision, { kind: 'allow' })
+  assert.equal(genericQuestionDownstream, 1)
+
+  const reopened = await ctx.reopenTool.execute({}, exec)
+  assert.equal(reopened.state.phase, 'PLANNING')
+  assert.equal(reopened.replan.decision, 'REOPEN')
+  assert.equal(reopened.replan.mode, 'NEW_TASK')
+  assert.equal(reopened.replan.feedback, '换成实现一个最小 durable tool dispatcher')
+  assert.equal(session.messages.length, 0)
+
+  const request = ctx.questionRequests.at(-1)
+  assert.equal(request.agent, exec.agent)
+  assert.equal(request.questions[0].id, 'ownership-plan-reopen')
+  assert.match(request.questions[0].question, /接下来怎么处理/)
+
+  const events = await getOwnershipController(ctx).ledger.read('session-structured-replan')
+  const reopenEvents = events.filter(event => event.type === 'plan.reopened')
+  assert.equal(reopenEvents.length, 1)
+  assert.equal(reopenEvents[0].payload.reopen_source, 'user-question')
+  assert.equal(JSON.stringify(events).includes('durable tool dispatcher'), false)
 })
 
 test('pre-Build shell discovery stays denied and tells the model to use real read tools', async t => {
