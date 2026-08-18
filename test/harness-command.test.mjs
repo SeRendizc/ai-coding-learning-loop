@@ -237,7 +237,7 @@ test('/ownership start automatically queues dedicated Plan continuation with tas
   assert.match(queued[0].content[0].text, /ownership_lifecycle status/)
   assert.match(queued[0].content[0].text, /ownership_submit_plan/)
   assert.match(queued[0].content[0].text, /schema_version 和 work_unit_id 由 Runtime 自动补齐/)
-  assert.match(queued[0].content[0].text, /未经用户批准 Plan，任务范围不算确定/)
+  assert.match(queued[0].content[0].text, /未经用户批准 Plan，禁止任何实现或写入操作/)
   assert.match(result.text, /正在生成包含具体编码任务的 Plan/)
 })
 
