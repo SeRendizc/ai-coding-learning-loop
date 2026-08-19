@@ -1,13 +1,63 @@
 {
-  "name": "ai-coding-learning-loop",
-  "version": "0.0.0",
-  "private": true,
+  "name": "dsh-ai-coding-learning-loop",
+  "version": "0.1.0-alpha.0",
+  "description": "Learning-aware delegation, teaching delivery, and transfer gates for AI coding",
+  "license": "MIT",
   "type": "module",
+  "main": "index-h07.js",
+  "types": "src/index.d.ts",
+  "bin": {
+    "ai-coding-learning-loop": "./bin/ownership.mjs"
+  },
+  "exports": {
+    ".": "./index-h07.js",
+    "./contracts": "./src/contracts.mjs",
+    "./core": "./src/core.mjs",
+    "./evidence": "./src/evidence.mjs",
+    "./session": "./src/session.mjs",
+    "./report": "./src/report.mjs"
+  },
+  "files": [
+    "index.js",
+    "index-h07.js",
+    "cordis.patch.yml",
+    "bin",
+    "docs",
+    "evaluation",
+    "examples",
+    "fixtures",
+    "presets",
+    "skills",
+    "src",
+    "schemas",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "ai-assisted-learning",
+    "ai-coding",
+    "code-ownership"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "test": "node --test",
-    "verify:harness": "node scripts/verify-harness.mjs ../deepseek-harness-upstream"
+    "test": "node --test test/*.test.mjs",
+    "demo": "node examples/run-comparison.mjs",
+    "verify:evaluation": "node scripts/verify-evaluation.mjs",
+    "verify:harness-live:syntax": "node --check scripts/live-harness-smoke.mjs",
+    "verify:harness-local:syntax": "node --check scripts/local-harness-acceptance.mjs",
+    "verify:harness": "node scripts/verify-harness.mjs",
+    "check:local": "npm run check && npm run verify:harness-live:syntax && npm run verify:harness-local:syntax",
+    "test:harness:local": "node scripts/local-harness-acceptance.mjs",
+    "test:local": "npm run check:local && npm run test:harness:local && npm pack --dry-run",
+    "check": "npm test && npm run verify:evaluation"
   }
 }

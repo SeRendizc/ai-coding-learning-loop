@@ -1,0 +1,6 @@
+- insert:
+    - id: ai-coding-learning-loop
+      name: dsh-ai-coding-learning-loop
+      config:
+        maxEntries: 256
+        evidenceRoot: .ai-coding-learning-loop/evidence

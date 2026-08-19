@@ -1,0 +1,6 @@
+schema_version: ai-coding-learning-loop.preset.v1
+mode: GUIDED
+default_implementation_owner: human
+required_gate_levels: [EXPLAIN]
+require_unseen_variant: false
+detail_risk: low

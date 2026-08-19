@@ -6,6 +6,8 @@ import {
   requiredGateLevels,
   validateDeliverRecord,
   validateLearningContract,
+  validatePlanRecord,
+  validateGateEvaluation,
 } from '../src/contracts.mjs'
 import { transition } from '../src/lifecycle.mjs'
 
@@ -16,6 +18,7 @@ const contract = {
   learning_targets: [{ id: 'parser-state', mastery: 'PREDICT', owner: 'human' }],
   work_units: [{ id: 'parse-core', implementation_owner: 'human' }],
   gate: { max_attempts: 3, require_unseen_variant: true },
+  change_policy: 'explicit-confirmation',
 }
 
 const completeDeliver = {
@@ -23,6 +26,7 @@ const completeDeliver = {
   work_unit_id: 'parse-core',
   implementation_ref: 'sha256:implementation',
   verification_refs: ['test:parser'],
+  learning_targets: ['parser-state'],
   topics_taught: [
     'scope',
     'reading-order',
@@ -35,6 +39,7 @@ const completeDeliver = {
     'transfer-example',
     'known-gaps',
   ],
+  known_gaps: [],
   ready_for_gate: true,
 }
 
@@ -47,6 +52,29 @@ test('the four delegation modes carry distinct minimum gate evidence', () => {
 
 test('a valid learning contract is accepted', () => {
   assert.deepEqual(validateLearningContract(contract), [])
+})
+
+test('Planning is a separate user-reviewed phase before Build', () => {
+  assert.deepEqual(validatePlanRecord({
+    schema_version: 'ai-coding-learning-loop.plan.v1',
+    work_unit_id: 'parse-core',
+    implementation_steps: ['implement parser transitions'],
+    verification_plan: ['run parser tests'],
+    learning_anchors: ['state stack'],
+    known_risks: [],
+  }), [])
+  assert.equal(transition('BRIEFED', 'PLANNING'), 'PLANNING')
+  assert.equal(transition('PLANNING', 'AWAITING_PLAN_REVIEW'), 'AWAITING_PLAN_REVIEW')
+  assert.throws(() => transition('AWAITING_PLAN_REVIEW', 'BUILDING'), /illegal transition/)
+  assert.equal(transition('AWAITING_PLAN_REVIEW', 'PLAN_APPROVED'), 'PLAN_APPROVED')
+  assert.equal(transition('PLAN_APPROVED', 'BUILDING'), 'BUILDING')
+})
+
+test('Gate evaluation requires structured criterion evidence', () => {
+  assert.match(validateGateEvaluation({
+    result: 'PASS',
+    criterion_results: ['assume everything passed'],
+  }).join('\n'), /criterion_result must be an object/)
 })
 
 test('Gate cannot open before the full teaching Deliver exists', () => {

@@ -1,0 +1,14 @@
+{
+  "schema_version": "ai-coding-learning-loop.learning-contract.v1",
+  "task_id": "kv-cache",
+  "goal": "deep-learning",
+  "mode": "GUIDED",
+  "learning_targets": [
+    { "id": "decode-cache-position", "mastery": "EXPLAIN", "owner": "human" }
+  ],
+  "work_units": [
+    { "id": "cache-update", "implementation_owner": "human" }
+  ],
+  "gate": { "max_attempts": 3, "require_unseen_variant": false },
+  "change_policy": "explicit-confirmation"
+}

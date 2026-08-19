@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SeRendizc/ai-coding-learning-loop/evaluation/harness-live-report.schema.json",
+  "title": "Pinned DeepSeek Harness live compatibility report",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "upstream", "result", "checks", "evidence_backend", "provider_call_performed"],
+  "properties": {
+    "schema_version": { "const": "ai-coding-learning-loop.harness-live.v1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "upstream": {
+      "type": "object",
+      "required": ["package", "version", "commit"],
+      "properties": {
+        "package": { "const": "@deepseek-ai/dsh-root" },
+        "version": { "type": "string" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "result": { "enum": ["PASS", "FAIL"] },
+    "checks": {
+      "type": "object",
+      "required": [
+        "actual_cordis_context",
+        "command_registered",
+        "packaged_skill_registered",
+        "real_tool_pre_execute_and_result",
+        "lifecycle_tool_registered",
+        "durable_lifecycle_closed",
+        "durable_contract_recovered",
+        "fiber_cleanup"
+      ],
+      "properties": {
+        "actual_cordis_context": { "const": true },
+        "command_registered": { "const": true },
+        "packaged_skill_registered": { "const": true },
+        "real_tool_pre_execute_and_result": { "const": true },
+        "lifecycle_tool_registered": { "const": true },
+        "durable_lifecycle_closed": { "const": true },
+        "durable_contract_recovered": { "const": true },
+        "fiber_cleanup": {
+          "type": "object",
+          "required": ["controller_removed", "command_removed", "skill_removed", "lifecycle_tool_removed"],
+          "properties": {
+            "controller_removed": { "const": true },
+            "command_removed": { "const": true },
+            "skill_removed": { "const": true },
+            "lifecycle_tool_removed": { "const": true }
+          }
+        }
+      }
+    },
+    "evidence_backend": { "const": "sidecar-file-v1" },
+    "provider_call_performed": { "type": "boolean" },
+    "automation": {
+      "type": ["object", "null"],
+      "required": ["repository", "run_id", "sha"],
+      "properties": {
+        "repository": { "type": "string" },
+        "run_id": { "type": "integer", "minimum": 1 },
+        "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["id", "name", "digest", "head_sha", "workflow_run_url"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "const": "s4-harness-live-evidence" },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "head_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "workflow_run_url": { "type": "string", "format": "uri" }
+      }
+    }
+  }
+}

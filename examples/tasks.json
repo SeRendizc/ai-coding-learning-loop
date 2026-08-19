@@ -1,0 +1,26 @@
+[
+  {
+    "id": "tiny-parser",
+    "work_unit_id": "parse-core",
+    "target_id": "parser-state",
+    "target": "stack-based parser state and unmatched delimiter failure",
+    "implementation_ref": "sha256:tiny-parser-demo",
+    "verification_ref": "test:tiny-parser-demo"
+  },
+  {
+    "id": "protected-repository",
+    "work_unit_id": "policy-adapter",
+    "target_id": "authorization-separation",
+    "target": "delegation mode cannot bypass runtime authorization",
+    "implementation_ref": "sha256:protected-repository-demo",
+    "verification_ref": "test:protected-repository-demo"
+  },
+  {
+    "id": "kv-cache",
+    "work_unit_id": "cache-update",
+    "target_id": "decode-cache-position",
+    "target": "decode writes the new key and value at the absolute cache position",
+    "implementation_ref": "sha256:kv-cache-demo",
+    "verification_ref": "test:kv-cache-demo"
+  }
+]

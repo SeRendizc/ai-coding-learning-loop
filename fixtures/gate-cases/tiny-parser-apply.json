@@ -1,0 +1,10 @@
+{
+  "schema_version": "ai-coding-learning-loop.gate-case.v1",
+  "id": "tiny-parser-apply-1",
+  "level": "APPLY",
+  "learning_target_id": "parser-state",
+  "deliver_topic": "failure-paths",
+  "deliver_ref": "sha256:tiny-parser-fixture",
+  "prompt": "The parser receives one extra closing delimiter. Where should it fail, and what prior state must remain valid?",
+  "rubric": ["fails at the unmatched closing token", "does not invent a matching opener", "preserves previously accepted state"]
+}

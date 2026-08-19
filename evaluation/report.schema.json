@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://serendizc.github.io/ai-coding-learning-loop/evaluation/report.schema.json",
+  "title": "AI Coding Learning Loop Comparison",
+  "type": "object",
+  "required": ["schema_version", "generated_from", "empirical_human_study", "tasks", "rows", "limitations"],
+  "properties": {
+    "schema_version": { "const": "ai-coding-learning-loop.comparison.v1" },
+    "empirical_human_study": { "type": "boolean" },
+    "tasks": { "type": "array", "minItems": 1 },
+    "rows": { "type": "array", "minItems": 1 },
+    "limitations": { "type": "array", "minItems": 1 }
+  }
+}

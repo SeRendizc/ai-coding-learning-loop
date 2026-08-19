@@ -1,0 +1,14 @@
+{
+  "schema_version": "ai-coding-learning-loop.deliver.v1",
+  "work_unit_id": "parse-core",
+  "implementation_ref": "sha256:tiny-parser-fixture",
+  "verification_refs": ["test:tiny-parser"],
+  "learning_targets": ["parser-state"],
+  "topics_taught": [
+    "scope", "reading-order", "data-flow", "design-rationale", "invariants",
+    "failure-paths", "verification", "prior-knowledge-link", "transfer-example", "known-gaps"
+  ],
+  "examples_used": ["unmatched-closing-delimiter"],
+  "known_gaps": ["error-recovery-not-covered"],
+  "ready_for_gate": true
+}

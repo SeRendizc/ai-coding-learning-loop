@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://serendizc.github.io/ai-coding-learning-loop/schemas/learning-contract.schema.json",
+  "title": "AI Coding Learning Contract",
+  "type": "object",
+  "required": ["schema_version", "task_id", "mode", "learning_targets", "work_units", "gate", "change_policy"],
+  "properties": {
+    "schema_version": { "const": "ai-coding-learning-loop.learning-contract.v1" },
+    "task_id": { "type": "string", "minLength": 1 },
+    "engineering_task": { "type": "string", "minLength": 1 },
+    "mode": { "enum": ["GUIDED", "HUMAN_LED", "AI_LED", "DELEGATED"] },
+    "learner_profile": {
+      "type": "object",
+      "required": ["expertise", "locale"],
+      "properties": {
+        "expertise": { "enum": ["BEGINNER", "PRACTITIONER", "EXPERT"] },
+        "locale": { "enum": ["zh-CN", "en"] }
+      },
+      "additionalProperties": false
+    },
+    "learning_targets": { "type": "array", "minItems": 1 },
+    "work_units": { "type": "array", "minItems": 1 },
+    "gate": {
+      "type": "object",
+      "required": ["max_attempts", "require_unseen_variant"],
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 1 },
+        "require_unseen_variant": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "change_policy": { "const": "explicit-confirmation" }
+  },
+  "additionalProperties": true
+}

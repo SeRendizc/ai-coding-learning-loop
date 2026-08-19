@@ -1,0 +1,14 @@
+{
+  "schema_version": "ai-coding-learning-loop.learning-contract.v1",
+  "task_id": "protected-repository",
+  "goal": "learn-and-ship",
+  "mode": "AI_LED",
+  "learning_targets": [
+    { "id": "authorization-separation", "mastery": "APPLY", "owner": "human" }
+  ],
+  "work_units": [
+    { "id": "policy-adapter", "implementation_owner": "ai" }
+  ],
+  "gate": { "max_attempts": 3, "require_unseen_variant": true },
+  "change_policy": "explicit-confirmation"
+}

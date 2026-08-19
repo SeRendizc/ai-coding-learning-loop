@@ -1,0 +1,39 @@
+{
+  "schema_version": "ai-coding-learning-loop.harness-live.v1",
+  "generated_at": "2026-08-17T14:40:51.880Z",
+  "upstream": {
+    "package": "@deepseek-ai/dsh-root",
+    "version": "0.1.0-rc.7",
+    "commit": "99f6f02fecdb7dff40c3fbc9470f5907c29f74ca"
+  },
+  "result": "PASS",
+  "checks": {
+    "actual_cordis_context": true,
+    "command_registered": true,
+    "packaged_skill_registered": true,
+    "real_tool_pre_execute_and_result": true,
+    "lifecycle_tool_registered": true,
+    "durable_lifecycle_closed": true,
+    "durable_contract_recovered": true,
+    "fiber_cleanup": {
+      "controller_removed": true,
+      "command_removed": true,
+      "skill_removed": true,
+      "lifecycle_tool_removed": true
+    }
+  },
+  "evidence_backend": "sidecar-file-v1",
+  "provider_call_performed": false,
+  "automation": {
+    "repository": "SeRendizc/ai-coding-learning-loop",
+    "run_id": 32039847931,
+    "sha": "4014bb567f443b23b2e90de1f1616772ef44dc3e"
+  },
+  "artifact": {
+    "id": 9291735245,
+    "name": "s4-harness-live-evidence",
+    "digest": "sha256:f0b1d6cde6ae2b57ae441f78872d6f7358c54fbb13a7f8991ed4a7d5b261f16c",
+    "head_sha": "a1a6a3f1d38d6433d4d4cffb71c604f6dc0ab6e2",
+    "workflow_run_url": "https://github.com/SeRendizc/ai-coding-learning-loop/actions/runs/32039847931"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "ai-coding-learning-loop.learning-contract.v1",
+  "task_id": "tiny-parser",
+  "goal": "learn-and-ship",
+  "mode": "HUMAN_LED",
+  "learning_targets": [
+    { "id": "parser-state", "mastery": "PREDICT", "owner": "human" }
+  ],
+  "work_units": [
+    { "id": "parse-core", "implementation_owner": "human" }
+  ],
+  "gate": { "max_attempts": 3, "require_unseen_variant": true },
+  "change_policy": "explicit-confirmation"
+}

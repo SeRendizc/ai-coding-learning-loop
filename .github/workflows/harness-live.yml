@@ -1,0 +1,160 @@
+name: pinned-harness-live
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+  pull_request:
+    paths:
+      - "index.js"
+      - "cordis.patch.yml"
+      - "src/**"
+      - "skills/**"
+      - "scripts/live-harness-smoke.mjs"
+      - ".github/workflows/harness-live.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Checkout pinned DeepSeek Harness
+        uses: actions/checkout@v4
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: 99f6f02fecdb7dff40c3fbc9470f5907c29f74ca
+          path: harness
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        run: corepack enable && corepack prepare pnpm@11.7.0 --activate
+
+      - name: Install pinned Harness
+        working-directory: harness
+        run: pnpm install --frozen-lockfile
+
+      - name: Install bundle through the official profile command
+        working-directory: harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-live-home
+        run: pnpm dsh plugin --profile learning add "$GITHUB_WORKSPACE/plugin"
+
+      - name: Dump composed profile
+        working-directory: harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-live-home
+        run: |
+          mkdir -p "${{ runner.temp }}/s4-live"
+          pnpm dsh --profile learning --dump-config > "${{ runner.temp }}/s4-live/composed-config.yml"
+          grep -q "id: ai-coding-learning-loop" "${{ runner.temp }}/s4-live/composed-config.yml"
+
+      - name: Exercise real Harness services and recovery
+        working-directory: harness
+        run: >-
+          node --import tsx/esm
+          ../plugin/scripts/live-harness-smoke.mjs
+          "$PWD"
+          "${{ runner.temp }}/s4-live/evidence"
+          "${{ runner.temp }}/s4-live/harness-live-report.json"
+
+      - name: Upload compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4-harness-live-evidence
+          path: ${{ runner.temp }}/s4-live
+          if-no-files-found: error
+          retention-days: 30
+
+  resolve-latest-release:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - id: release
+        name: Resolve latest published Harness release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            'https://api.github.com/repos/deepseek-ai/deepseek-harness/releases?per_page=20' \
+            | node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{const r=JSON.parse(s).find(x=>!x.draft&&x.tag_name.startsWith('dsh-v'));if(!r)process.exit(2);process.stdout.write(r.tag_name)})")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  latest-release-canary:
+    needs: resolve-latest-release
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+
+      - name: Checkout latest released DeepSeek Harness
+        uses: actions/checkout@v4
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: ${{ needs.resolve-latest-release.outputs.tag }}
+          path: harness
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up pnpm
+        run: corepack enable && corepack prepare pnpm@11.7.0 --activate
+
+      - name: Install latest released Harness
+        working-directory: harness
+        run: pnpm install --frozen-lockfile
+
+      - name: Install bundle through the official profile command
+        working-directory: harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-latest-home
+        run: pnpm dsh plugin --profile learning add "$GITHUB_WORKSPACE/plugin"
+
+      - name: Dump composed profile
+        working-directory: harness
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-latest-home
+        run: |
+          mkdir -p "${{ runner.temp }}/s4-latest"
+          pnpm dsh --profile learning --dump-config > "${{ runner.temp }}/s4-latest/composed-config.yml"
+          grep -q "id: ai-coding-learning-loop" "${{ runner.temp }}/s4-latest/composed-config.yml"
+
+      - name: Exercise latest released Harness services and recovery
+        working-directory: harness
+        run: >-
+          node --import tsx/esm
+          ../plugin/scripts/live-harness-smoke.mjs
+          "$PWD"
+          "${{ runner.temp }}/s4-latest/evidence"
+          "${{ runner.temp }}/s4-latest/harness-live-report.json"
+
+      - name: Upload latest-release canary evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s4-harness-latest-${{ needs.resolve-latest-release.outputs.tag }}
+          path: ${{ runner.temp }}/s4-latest
+          if-no-files-found: warn
+          retention-days: 14
