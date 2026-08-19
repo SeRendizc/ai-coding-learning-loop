@@ -48,7 +48,7 @@ export function materializeDeliverRecord(context, events, input = {}) {
   })
 }
 
-function validateGateItems(items, deliver, requiredLevels) {
+function validateGateItems(items, deliver, requiredLevels, requireUnseenVariant) {
   if (!Array.isArray(items) || items.length === 0) throw new TypeError('Gate items must be a non-empty array')
   const ids = new Set()
   const levels = new Set()
@@ -62,6 +62,9 @@ function validateGateItems(items, deliver, requiredLevels) {
     levels.add(item.level)
     if (typeof item.deliver_topic !== 'string' || !deliver.topics_taught.includes(item.deliver_topic)) {
       throw new Error(`Gate item ${item.id} must bind to a taught Deliver topic`)
+    }
+    if (requireUnseenVariant && item.level === 'APPLY' && item.deliver_topic === 'transfer-example') {
+      throw new Error('APPLY unseen variant cannot reuse the taught transfer-example; bind a conceptual taught topic and ask a materially different scenario')
     }
     if (typeof item.prompt !== 'string' || item.prompt.trim().length === 0) throw new TypeError(`Gate item ${item.id} requires prompt`)
     if (!Array.isArray(item.rubric) || item.rubric.length === 0 || item.rubric.some(value => typeof value !== 'string' || value.length === 0)) {
@@ -77,7 +80,8 @@ function validateGateItems(items, deliver, requiredLevels) {
 export function materializeCompositeGate(context, deliver, input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Gate input must be an object')
   const requiredLevels = requiredGateLevels(context.contract.mode)
-  validateGateItems(input.items, deliver, requiredLevels)
+  const requireUnseenVariant = context.contract?.gate?.require_unseen_variant === true
+  validateGateItems(input.items, deliver, requiredLevels, requireUnseenVariant)
   const targetIds = deliver.learning_targets ?? []
   if (targetIds.length !== 1) throw new Error('H0 composite Gate currently requires exactly one taught learning target')
   const items = input.items.map(item => Object.freeze({
@@ -92,6 +96,7 @@ export function materializeCompositeGate(context, deliver, input) {
     learning_target_id: targetIds[0],
     deliver_ref: deliver.implementation_ref,
     required_levels: requiredLevels,
+    require_unseen_variant: requireUnseenVariant,
     items,
   }
   const id = `gate-${sha256(identity).slice(7, 19)}`
@@ -107,6 +112,7 @@ export function materializeCompositeGate(context, deliver, input) {
     rubric: flattenedRubric,
     composite_version: 'ai-coding-learning-loop.gate-bundle.v1',
     required_levels: [...requiredLevels],
+    require_unseen_variant: requireUnseenVariant,
     items,
   })
 }
