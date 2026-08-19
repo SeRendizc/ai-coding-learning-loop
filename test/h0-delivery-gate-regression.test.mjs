@@ -33,6 +33,7 @@ const context = {
   contract: {
     mode: 'DELEGATED',
     learning_targets: [{ id: 'target-agent-infra' }],
+    gate: { require_unseen_variant: true },
   },
   state: {
     phase: 'DELIVERING',
@@ -68,8 +69,8 @@ function validItems() {
     {
       id: 'apply',
       level: 'APPLY',
-      deliver_topic: 'transfer-example',
-      prompt: 'Apply unknown-outcome recovery to a new provider.',
+      deliver_topic: 'failure-paths',
+      prompt: 'Apply unknown-outcome recovery to a different side-effectful provider.',
       rubric: ['blocks blind rerun after unknown outcome'],
     },
   ]
@@ -95,9 +96,31 @@ test('DELEGATED composite Gate rejects missing required APPLY coverage', () => {
   )
 })
 
+test('unseen APPLY cannot reuse the taught transfer-example binding', () => {
+  const items = validItems()
+  items[2] = { ...items[2], deliver_topic: 'transfer-example' }
+  assert.throws(
+    () => materializeCompositeGate(context, deliver, { items }),
+    /APPLY unseen variant cannot reuse the taught transfer-example/,
+  )
+})
+
+test('transfer-example binding remains legal when unseen variants are not required', () => {
+  const items = validItems()
+  items[2] = { ...items[2], deliver_topic: 'transfer-example' }
+  const relaxed = {
+    ...context,
+    contract: { ...context.contract, gate: { require_unseen_variant: false } },
+  }
+  const gate = materializeCompositeGate(relaxed, deliver, { items })
+  assert.equal(gate.require_unseen_variant, false)
+  assert.equal(gate.items[2].deliver_topic, 'transfer-example')
+})
+
 test('composite Gate binds exactly EXPLAIN PREDICT APPLY and flattens rubric evidence', () => {
   const gate = materializeCompositeGate(context, deliver, { items: validItems() })
   assert.deepEqual(gate.required_levels, ['EXPLAIN', 'PREDICT', 'APPLY'])
+  assert.equal(gate.require_unseen_variant, true)
   assert.deepEqual(gate.items.map(item => item.level), ['EXPLAIN', 'PREDICT', 'APPLY'])
   assert.deepEqual(gate.rubric, [
     'explain::identifies the durable source of truth',
