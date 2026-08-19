@@ -1,4 +1,5 @@
 import * as base from './index.js'
+import { REQUIRED_DELIVER_TOPICS } from './src/contracts.mjs'
 import {
   H07_TOOL_NAMES,
   latestEvent,
@@ -22,6 +23,12 @@ const LEGACY_POST_BUILD_ACTIONS = new Set([
   'ask_gate',
   'record_gate_answer',
   'evaluate_gate',
+])
+const RUNTIME_OWNED_WORK_UNIT_ACTIONS = new Set([
+  'brief',
+  'start_plan',
+  'start_work',
+  'start_revision',
 ])
 
 function mappedContext(ctx) {
@@ -148,7 +155,13 @@ function deliverTool(session) {
       const events = await session.ledger.read(taskId)
       const record = materializeDeliverRecord(context, events, args)
       await session.completeDeliver(taskId, record)
-      return { task_id: taskId, action: 'complete_deliver', state: await session.state(taskId) }
+      return {
+        task_id: taskId,
+        action: 'complete_deliver',
+        state: await session.state(taskId),
+        taught_topics: [...record.topics_taught],
+        require_unseen_variant: context.contract?.gate?.require_unseen_variant === true,
+      }
     },
   }
 }
@@ -164,7 +177,11 @@ function gateItemsSchema() {
       properties: {
         id: { type: 'string', minLength: 1 },
         level: { type: 'string', enum: ['EXPLAIN', 'PREDICT', 'APPLY'] },
-        deliver_topic: { type: 'string', minLength: 1 },
+        deliver_topic: {
+          type: 'string',
+          enum: [...REQUIRED_DELIVER_TOPICS],
+          description: 'Bind to one Runtime-defined taught Deliver topic. When require_unseen_variant is true, APPLY must not bind transfer-example.',
+        },
         prompt: { type: 'string', minLength: 1 },
         rubric: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
       },
@@ -175,7 +192,7 @@ function gateItemsSchema() {
 function openGateTool(session) {
   return {
     name: 'ownership_open_gate',
-    description: 'Open one composite transfer Gate after Deliver. Provide one item for every level required by the confirmed delegation mode. Runtime binds the current Deliver/learning target and rejects missing or duplicate EXPLAIN/PREDICT/APPLY coverage.',
+    description: 'Open one composite transfer Gate after Deliver. Provide one item for every level required by the confirmed delegation mode. deliver_topic must use a Runtime-defined taught topic returned by ownership_complete_deliver. If the Contract requires an unseen variant, APPLY must bind a conceptual taught topic rather than transfer-example and must ask a materially different scenario.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -195,7 +212,14 @@ function openGateTool(session) {
         task_id: taskId,
         action: 'open_gate',
         state: await session.state(taskId),
-        gate: { id: gateCase.id, required_levels: gateCase.required_levels, items: gateCase.items, prompt: gateCase.prompt },
+        taught_topics: [...deliver.topics_taught],
+        gate: {
+          id: gateCase.id,
+          required_levels: gateCase.required_levels,
+          require_unseen_variant: gateCase.require_unseen_variant,
+          items: gateCase.items,
+          prompt: gateCase.prompt,
+        },
       }
     },
   }
@@ -273,22 +297,37 @@ function installH07Tools(ctx, session) {
     promptCtx.effect(() => promptCtx.systemPrompt.section({
       name: 'ai-coding-learning-loop:h0-7',
       order: 118,
-      text: 'H0.7 post-Build protocol: after implementation use ownership_submit_implementation with only implementation_ref, then ownership_record_verification with result + verification_refs. After engineering PASS, teach the verified result completely before calling ownership_complete_deliver; that tool derives all durable identity/evidence fields. Open learning transfer only with ownership_open_gate and provide exactly one item for every level required by the confirmed delegation mode. After the user answers in direct chat, call ownership_record_gate_answer, then ownership_evaluate_gate with one item_result per asked item and exact criterion-level booleans. Never use legacy lifecycle submit_implementation/record_verification/complete_deliver/ask_gate/record_gate_answer/evaluate_gate in a new model turn. A PASS must cover every required EXPLAIN/PREDICT/APPLY item and every rubric criterion. For durable-execution examples, copy/canonicalize caller-owned mutable arguments before storing immutable intent; never claim a frozen wrapper makes a mutable dict immutable. Once invocation_started is durable, a generic provider exception/timeout is UNKNOWN_OUTCOME unless the Provider proves no side effect or provides reliable idempotency/reconciliation; never label arbitrary invoke exceptions deterministic failures.',
+      text: 'H0.7 protocol: ownership_lifecycle brief/start_plan/start_work/start_revision use Runtime-owned active work-unit identity; do not send work_unit_id. After implementation use ownership_submit_implementation with only implementation_ref, then ownership_record_verification with result + verification_refs. After engineering PASS, teach the verified result completely before calling ownership_complete_deliver; that tool derives all durable identity/evidence fields and returns the valid taught_topics for Gate binding. Open learning transfer only with ownership_open_gate and provide exactly one item for every level required by the confirmed delegation mode. Use only deliver_topic enum values exposed by the tool schema / ownership_complete_deliver result; never inspect plugin source to discover topic identifiers. When require_unseen_variant=true, APPLY must not bind transfer-example and must test the same concept in a materially different scenario from the Deliver transfer example. After the user answers in direct chat, call ownership_record_gate_answer, then ownership_evaluate_gate with one item_result per asked item and exact criterion-level booleans. Never use legacy lifecycle submit_implementation/record_verification/complete_deliver/ask_gate/record_gate_answer/evaluate_gate in a new model turn. A PASS must cover every required EXPLAIN/PREDICT/APPLY item and every rubric criterion. Respect the approved Plan: implementation-detail substitutions are allowed when they preserve approved scope, but adding a new user-visible deliverable, feature, or verification goal requires Plan revision before implementation. For durable-execution examples, copy/canonicalize caller-owned mutable arguments before storing immutable intent; never claim a frozen wrapper makes a mutable dict immutable. Once invocation_started is durable, a generic provider exception/timeout is UNKNOWN_OUTCOME unless the Provider proves no side effect or provides reliable idempotency/reconciliation; never label arbitrary invoke exceptions deterministic failures. Do not describe this spike as exactly-once delivery: it demonstrates durable intent, duplicate handling, and unknown-outcome safety while illustrating why exactly-once side effects are difficult. If PENDING provably means invocation has not started, safe retry may be valid; if an example chooses not to retry PENDING, explain that as a deliberate liveness-for-safety simplification rather than a universal durable-systems rule.',
     }))
   })
+}
+
+async function executeLifecycleWithRuntimeWorkUnit(definition, args, exec) {
+  const action = args?.action
+  if (!RUNTIME_OWNED_WORK_UNIT_ACTIONS.has(action) || args?.work_unit_id) {
+    return definition.execute(args, exec)
+  }
+  const status = await definition.execute({ action: 'status' }, exec)
+  const workUnitId = status?.state?.active_work_unit_id ?? status?.context?.work_units?.[0]?.id
+  if (typeof workUnitId !== 'string' || workUnitId.length === 0) {
+    throw new Error(`Runtime could not derive active work_unit_id for ${String(action)}`)
+  }
+  return definition.execute({ ...args, work_unit_id: workUnitId }, exec)
 }
 
 function sanitizeLifecycleTool(definition) {
   if (definition?.name !== 'ownership_lifecycle') return definition
   const parameters = structuredClone(definition.parameters)
   parameters.properties.action.enum = parameters.properties.action.enum.filter(action => !LEGACY_POST_BUILD_ACTIONS.has(action))
+  delete parameters.properties.work_unit_id
   for (const field of ['implementation_ref', 'verification_result', 'verification_refs', 'deliver_record', 'gate_case', 'gate_evaluation']) {
     delete parameters.properties[field]
   }
   return {
     ...definition,
-    description: `${definition.description} Post-Build implementation, verification, Deliver, and Gate actions are exposed as dedicated ownership_* tools; their legacy lifecycle actions remain recovery-only and are intentionally hidden from this schema.`,
+    description: `${definition.description} Active work-unit identity for brief/start_plan/start_work/start_revision is Runtime-owned; omit work_unit_id. Post-Build implementation, verification, Deliver, and Gate actions are exposed as dedicated ownership_* tools; their legacy lifecycle actions remain recovery-only and are intentionally hidden from this schema.`,
     parameters,
+    execute: (args, exec) => executeLifecycleWithRuntimeWorkUnit(definition, args, exec),
   }
 }
 
