@@ -39,23 +39,23 @@ Never call `start_plan` from `PLAN_REJECTED`. Never pretend a generic question r
 For a fresh work unit:
 
 1. `ownership_lifecycle status`;
-2. `ownership_lifecycle brief`;
-3. `ownership_lifecycle start_plan`;
+2. `ownership_lifecycle brief` with planning topics only — Runtime derives the active work-unit identity; do not send `work_unit_id`;
+3. `ownership_lifecycle start_plan` — Runtime derives the active work-unit identity;
 4. `ownership_submit_plan(engineering_task, implementation_steps, verification_plan, learning_anchors, known_risks)` exactly once. Runtime derives schema version and work-unit identity;
 5. honor `APPROVE / REVISE / REJECT / null` exactly;
-6. only after APPROVE call `ownership_lifecycle start_work`, immediately before implementation.
+6. only after APPROVE call `ownership_lifecycle start_work` immediately before implementation; Runtime derives the active work-unit identity.
 
 The native rc.7 Plan Review card exposes approve/refuse plus a fixed `Chat about it / 去聊天里说` cancellation action. The adapter catches that cancellation and opens the structured `修改方案 / Revise Plan` feedback question. Do not tell the user to leave the native review and type revision feedback in ordinary chat.
 
 ## Build and engineering evidence
 
-Respect the approved Plan and delegation mode. Do not silently expand scope.
+Respect the approved Plan and delegation mode. Do not silently expand scope. Implementation-detail substitutions are allowed when they preserve the approved engineering task, deliverables, and verification goals. Adding a new user-visible deliverable, feature, or verification goal requires Plan revision before implementation; do not treat “顺手加一个 demo/API/benchmark” as a harmless implementation detail.
 
 After implementation, new model turns must use the dedicated post-Build tools:
 
 1. `ownership_submit_implementation(implementation_ref)` — supply only the stable implementation digest/ref. Runtime derives task and active work-unit identity.
 2. `ownership_record_verification(result, verification_refs)` — supply only PASS/FAIL plus concrete test/check refs. Runtime derives work unit and latest implementation ref.
-3. On engineering FAIL, use `ownership_lifecycle start_revision` before changing implementation, then rebuild and resubmit implementation evidence.
+3. On engineering FAIL, use `ownership_lifecycle start_revision` without `work_unit_id` before changing implementation; Runtime derives the active work unit. Then rebuild and resubmit implementation evidence.
 4. On engineering PASS, teach the verified result completely before Deliver.
 
 Legacy lifecycle actions `submit_implementation` and `record_verification` remain recovery-only compatibility paths and are intentionally hidden from the model-facing lifecycle schema. Do not call them in new turns.
@@ -66,7 +66,9 @@ For durable-execution examples, preserve these safety invariants:
 - exact duplicate = same idempotency key + same canonical request → coalesce/replay the same logical request;
 - conflicting duplicate = same idempotency key + different canonical request → fail closed;
 - after `invocation_started` is durable, a generic provider exception/timeout does not prove no side effect. Treat it as `UNKNOWN_OUTCOME` unless the provider proves known-no-side-effect or offers reliable stable idempotency/reconciliation;
-- unknown outcome must never blind-rerun a side-effectful invocation.
+- unknown outcome must never blind-rerun a side-effectful invocation;
+- if `PENDING` has a strict invariant that invocation has not started, crash-before-call recovery may safely retry. If a teaching spike chooses not to retry PENDING, identify that as a conservative liveness-for-safety simplification, not a universal durable-execution rule;
+- do not describe this validation spike as “exactly-once delivery.” It demonstrates durable intent, duplicate handling, and unknown-outcome safety, and should be used to explain why exactly-once external side effects are difficult to guarantee.
 
 These are teaching/plan correctness constraints, not permission to build a second Agent Runtime.
 
@@ -89,7 +91,7 @@ After the verified result has actually been taught, call:
 
 `ownership_complete_deliver(known_gaps?)`
 
-Runtime derives schema version, work unit, current verified implementation ref, verification refs, taught-topic identifiers, learning target ids, and `ready_for_gate=true`. Do not reconstruct a giant Deliver record manually.
+Runtime derives schema version, work unit, current verified implementation ref, verification refs, taught-topic identifiers, learning target ids, and `ready_for_gate=true`. It returns `taught_topics` and whether `require_unseen_variant` is active. Use that result/tool schema for later Gate binding; do not inspect plugin source to discover topic identifiers.
 
 Legacy lifecycle `complete_deliver` is recovery-only and hidden from the model-facing action enum.
 
@@ -105,7 +107,7 @@ Each item must contain:
 
 - `id`;
 - `level`: `EXPLAIN`, `PREDICT`, or `APPLY`;
-- one taught `deliver_topic`;
+- one taught `deliver_topic` chosen from the Runtime-defined identifiers: `scope`, `reading-order`, `data-flow`, `design-rationale`, `invariants`, `failure-paths`, `verification`, `prior-knowledge-link`, `transfer-example`, `known-gaps`;
 - a concrete transfer `prompt`;
 - observable `rubric` criteria.
 
@@ -116,6 +118,8 @@ Runtime derives the current Deliver and learning target. It also derives `requir
 - AI_LED and DELEGATED require EXPLAIN + PREDICT + APPLY.
 
 Do not hide multiple learning levels inside one string while persisting only one level. The composite Gate bundle is the evidence boundary.
+
+If the Learning Contract has `require_unseen_variant=true`, APPLY must be a genuine transfer question rather than a replay of the taught transfer example. Runtime deterministically rejects APPLY bound to `transfer-example`; bind APPLY to a conceptual taught topic such as `invariants`, `failure-paths`, `design-rationale`, or `data-flow`, and change the business scenario/entity/action materially. For example, if Deliver taught “launch an 8-GPU training job,” APPLY should test the same invariant on something like model-endpoint creation, checkpoint registration, or another unseen side-effectful operation—not the same training-job launch with cosmetic wording changes.
 
 After the user answers in a fresh direct-chat message:
 
