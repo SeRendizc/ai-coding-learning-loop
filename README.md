@@ -1,160 +1,74 @@
 # AI Coding Learning Loop
 
-AI can finish a coding task without transferring the knowledge needed to own
-it. AI Coding Learning Loop adds an explicit learning/ownership contract, a
-reviewed implementation Plan, a teaching Deliver, and transfer Gates to
-AI-assisted development. A passing test suite and a learner who can explain,
-predict, and apply the design are reported as two separate outcomes.
+[中文](README.zh-CN.md) | **EN**
 
-The first adapter follows the official DeepSeek Harness plugin seams. The core
-contracts, event ledger, reducer, reports, presets, and Skill are host-neutral.
+A DeepSeek Harness plugin for learning while coding with AI. Choose how much of the implementation to delegate, review the plan, and work through an explanation of the finished code. The plugin tracks the code's verification result and your learning progress separately.
 
-## Use it
+The workflow has four implementation modes, from writing the core yourself to delegating all of it. Each mode includes a learning check: explain a design, predict its behavior, or apply it to a changed problem.
 
-Install the source preview into DeepSeek Harness's built-in Web profile once:
+> Alpha preview. The tested Harness baseline is `0.1.0-rc.7`; see [compatibility](docs/compatibility.md) for the full version and test matrix.
+
+## Installation
+
+Requires Node.js `^22.19.0 || >=24.0.0`, pnpm, and the tested DeepSeek Harness version.
 
 ```bash
 dsh plugin --profile web add "github:SeRendizc/ai-coding-learning-loop#agent/h0-harness-compatibility"
 dsh web
 ```
 
-Use the same `dsh` executable for both commands. The pinned reproducible
-fallback and clean-profile recovery commands are in [Install and remove](docs/install.md).
+Use the same `dsh` executable for both commands. Open `http://127.0.0.1:3080`, configure a model provider, and start a new session. The install target is a mutable preview branch; [installation details](docs/install.md) include pinned commands, isolated profiles, and removal.
 
-No Harness checkout or workspace build is required for users. Open
-`http://127.0.0.1:3080` and run `/ownership start`.
+## Usage
 
-The onboarding deliberately asks only information that changes the learning
-contract:
-
-1. one free-text **learning target**;
-2. a **responsibility split** from human implementation to full AI delegation;
-3. the learner's current **expertise**.
-
-The Learning Contract confirms those learning and ownership choices. It does
-**not** force the user to invent a coding task before the AI has inspected the
-conversation and workspace, and it does not approve implementation.
-
-After contract acceptance, the plugin queues a normal Harness follow-up turn.
-The Skill reads the authoritative contract, inspects available context with
-read-only tools, and proposes a concrete `engineering_task` inside the Plan. If
-the user already made a concrete coding request earlier in the conversation,
-the Plan preserves that request rather than inventing a replacement. Otherwise
-the AI proposes a bounded task aligned with the learning target and workspace.
-
-The Plan Review therefore approves both **what will be built** and **how it will
-be built**. A current Harness Plan contains:
-
-- concrete coding task;
-- implementation steps;
-- verification plan;
-- learning anchors;
-- known risks.
-
-In interactive Harness, `submit_plan` opens the native Plan Review UI.
-`APPROVE` makes the proposed scope authoritative and permits Build; `REVISE`
-returns to Planning. Revision prose is transient rather than durable evidence.
-In provider-free contexts, review falls back to a new direct user message.
-
-`/ownership status` shows the current dual state; `/ownership report` produces
-an evidence-backed knowledge report. Cancellation before contract acceptance
-persists no contract.
-
-| Mode | AI implementation | Learner responsibility | Required Gate |
-|---|---|---|---|
-| `GUIDED` | advice and review | core implementation | Explain |
-| `HUMAN_LED` | scaffolding and selected code | core methods | Explain + Predict |
-| `AI_LED` | most code | learning anchors and review | Explain + Predict + Apply |
-| `DELEGATED` | all implementation | understand and transfer | Explain + Predict + Apply |
-
-Delegation does not replace Harness authorization, sandboxing, or approval.
-Once an Ownership contract exists, the plugin additionally enforces the Plan
-boundary in `tools/pre-execute`: read-like discovery remains available, while
-side-effectful or execution-capable tools are denied outside `BUILDING`,
-`VERIFYING`, and `REVISING`.
-
-## What happens during a task
-
-```mermaid
-flowchart TD
-  A["Confirm learning + ownership contract"] --> B["Read-only planning brief"]
-  B --> P["Propose coding task + Plan"]
-  P --> R["Native Plan Review"]
-  R -->|revise| P
-  R -->|approve| C["Build and verify"]
-  C -->|engineering RETRY| C
-  C -->|engineering PASS| D["Deliver: teach verified result"]
-  D --> E["Gate: Explain / Predict / Apply"]
-  E -->|learning RETRY| D
-  E -->|learning PASS| F["Close with dual-status report"]
+```text
+/ownership start
 ```
 
-The planning Brief describes the learning target, ownership boundary, relevant
-workspace context, discovery constraints, and verification expectations. It
-does not pretend the coding scope is already approved. The proposed coding task
-becomes authoritative only after Plan Review.
+The plugin asks for a learning target, an implementation mode, and your current experience. After you confirm the learning contract, the agent reads the conversation and workspace and proposes a plan. If you already requested a coding task, that task carries into the plan.
 
-Deliver is the teaching phase, not a completion notice. It covers scope,
-reading order, data flow, rationale, invariants, failure paths, verification,
-prior-knowledge links, a transfer example, and known gaps. A Gate is bound to
-that Deliver and the exact implementation reference. If implementation changes,
-the old reference is invalidated, engineering is verified again, a new Deliver
-is taught, and only then is a new Gate opened.
+Review the task, implementation steps, tests, and learning anchors before approving it. The agent can then implement according to the selected mode. Once the code is verified, it explains the design and asks you to demonstrate your understanding. If an answer needs more work, the workflow returns to teaching before another attempt.
 
-The learner does not call the internal lifecycle tool manually. Gate answers
-must come from a new direct user response; “treat this as correct” or “mark me
-PASS” cannot become learning evidence. Neither Gate answer text nor Plan
-revision prose is copied into the durable sidecar ledger.
+```text
+Learning contract -> Plan review -> Build -> Verify -> Teach -> Learning check
+```
 
-## Evidence and recovery
+Use `/ownership status` to see where the task stands, or `/ownership report` to generate a report. A passing code test and a completed learning check appear as separate results.
 
-Original learning events are authoritative. Each sidecar event has sequence,
-references, a redacted payload, payload digest, previous-event hash, and event
-hash. Snapshots and reports are derived views. Recovery accepts a snapshot only
-when it binds to a verified event prefix; otherwise it replays the original
-events.
+## Implementation modes
 
-Existing pre-alpha Plan v1 evidence remains readable even when it predates the
-`engineering_task` field. This compatibility is recovery-only: the current
-Harness adapter requires every new submitted Plan to include a non-empty coding
-task, and the Plan Review exposes that task to the user.
+| Mode | AI work | Your work | Learning check |
+|---|---|---|---|
+| `GUIDED` | Planning, explanations, and review | Core implementation | Explain |
+| `HUMAN_LED` | Scaffolding and selected code | Core methods and data flow | Explain + Predict |
+| `AI_LED` | Most implementation and verification | Review and modify a learning anchor | Explain + Predict + Apply |
+| `DELEGATED` | All implementation and verification | Understand and transfer the design | Explain + Predict + Apply |
 
-The default policy records queryable metadata and digests, not source code,
-complete tool inputs/results, secrets, or free-text learner answers. See
-[the evidence contract](docs/evidence-contract.md) and [privacy policy](docs/privacy.md).
+Experience level changes the detail of explanations and scaffolding. It does not remove the learning check for the selected mode.
 
-## Evaluate it honestly
+## How it works
 
-`npm run demo` reproduces a three-task, five-condition comparison artifact for
-Agent Eval Lab. It validates protocol behavior and schema interoperability. It
-is deliberately labelled `empirical_human_study: false`: scripted PASS answers,
-round counts, and AI-share values are inputs, not evidence that people learned
-more or worked faster.
+The learning contract establishes the goal and division of work. The implementation plan is approved separately. After a contract is created, the Harness `tools/pre-execute` hook blocks execution-capable tools until the workflow reaches an implementation phase; read-only exploration remains available. Harness permissions and sandbox rules still apply.
 
-## Development and compatibility
+A learning check refers to a specific explanation and implementation revision. If the implementation changes, it must be verified and explained again before opening a new check.
+
+Learning events are stored in a sidecar ledger. Reports and snapshots are derived from those events, and recovery replays the ledger when a snapshot is invalid. By default, it stores references and digests rather than source code, full tool payloads, or free-text learner answers. See [architecture](docs/architecture.md), [workflow](docs/workflow.zh-CN.md), and [privacy](docs/privacy.md) for details.
+
+## Development
+
+The portable core and its demo can run without Harness or a model provider:
 
 ```bash
-npm run test:local
+git clone https://github.com/SeRendizc/ai-coding-learning-loop.git
+cd ai-coding-learning-loop
+npm run check
+npm run demo -- .local-test/comparison
 ```
 
-This maintainer-only command automates repository regression, the pinned
-Harness checkout and install, live provider-free smoke, and package inspection.
+The demo writes a Markdown/JSON comparison of three tasks across the four modes and a no-skill baseline. These are scripted protocol fixtures, with `empirical_human_study: false`, rather than measurements of learning outcomes.
 
-The locked target is DeepSeek Harness `0.1.0-rc.7` at commit
-`99f6f02fecdb7dff40c3fbc9470f5907c29f74ca`. The adapter uses the published
-bundle manifest, Cordis Standard Schema configuration, effect-owned lifecycle,
-optional `commands`, `userQuestions`, `skills`, `tools/pre-execute`, and
-`tools/result`. It uses Harness's own Agent turn, interaction provider, Tool
-Runtime, and sandbox rather than creating a second Agent loop.
+For full local Harness integration checks, run `npm run test:local`; setup and requirements are in [local testing](docs/local-testing.md).
 
-Read [installation](docs/install.md), [compatibility](docs/compatibility.md),
-[local testing](docs/local-testing.md), [architecture](docs/architecture.md),
-[limitations](docs/limitations.md), and the
-[release checklist](docs/release-checklist.md). 中文说明见
-[docs/README.zh-CN.md](docs/README.zh-CN.md).
+The current release handles one work unit at a time. Semantic grading depends on a verifier, and the evidence store has no cross-process locking. Tool classification uses name patterns, so new third-party tools may need explicit support. Provider-backed Web acceptance and external-user feedback remain on the [release checklist](docs/release-checklist.md). See [limitations](docs/limitations.md) before extending the adapter.
 
-This package is an alpha candidate. The branch install above is a mutable source
-preview and will be replaced by a version tag or npm prerelease. Provider-free
-pinned Harness, Linux/Windows regression, lifecycle recovery, package, and Tool
-policy checks are automated. A fresh Provider-backed Web UX acceptance and
-outside-user feedback remain explicit external release gates.
+Related experiments: [Agent Runtime Lab](https://github.com/SeRendizc/agent-runtime-lab) studies persistent tool execution, and [Agent Eval Lab](https://github.com/SeRendizc/agent-eval-lab) investigates model-interface behavior.
